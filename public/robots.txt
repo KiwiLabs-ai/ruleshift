@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /signup
+Allow: /privacy
+Allow: /terms
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /onboarding
+Disallow: /verify-email
+Disallow: /accept-invite
+
+Sitemap: https://ruleshift.app/sitemap.xml

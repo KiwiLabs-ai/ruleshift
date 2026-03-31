@@ -1,0 +1,16 @@
+project_id = "nvfttfzplrbfbaebdlqu"
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.monitor-sources]
+verify_jwt = false
+
+[functions.generate-brief]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.send-digests]
+verify_jwt = false

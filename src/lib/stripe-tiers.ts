@@ -1,0 +1,58 @@
+export const STRIPE_TIERS = {
+  basic: {
+    name: "Basic",
+    price: "$49",
+    priceAmount: 49,
+    priceId: "price_1T7P6hDOdwEZVcQrYURqZIBP",
+    productId: "prod_U5aHbRwGTN7xrH",
+    description: "For small teams getting started with compliance monitoring.",
+    features: [
+      "Up to 10 policy sources",
+      "Weekly email digest",
+      "Email alerts",
+      "30-day brief archive",
+      "Single user",
+    ],
+    sourceLimit: 10,
+    highlighted: false,
+  },
+  professional: {
+    name: "Professional",
+    price: "$99",
+    priceAmount: 99,
+    priceId: "price_1T7P7kDOdwEZVcQrXoPpWJTB",
+    productId: "prod_U5aIsM1EfFuyrj",
+    description: "For growing businesses that need daily coverage.",
+    features: [
+      "Up to 25 policy sources",
+      "Daily digest",
+      "Impact briefs with action items",
+      "Full brief archive",
+      "Up to 5 users",
+      "Slack integration",
+    ],
+    sourceLimit: 25,
+    highlighted: true,
+  },
+  enterprise: {
+    name: "Enterprise",
+    price: "$199",
+    priceAmount: 199,
+    priceId: "price_1T7P88DOdwEZVcQrgm8GYbw1",
+    productId: "prod_U5aIAlewBWuFxK",
+    description: "For organizations requiring real-time coverage and analyst review.",
+    features: [
+      "Unlimited policy sources",
+      "Real-time alerts",
+      "Analyst-reviewed briefs",
+      "Custom SLAs",
+      "Unlimited users",
+      "Dedicated account manager",
+      "API access",
+    ],
+    sourceLimit: Infinity,
+    highlighted: false,
+  },
+} as const;
+
+export type TierKey = keyof typeof STRIPE_TIERS;

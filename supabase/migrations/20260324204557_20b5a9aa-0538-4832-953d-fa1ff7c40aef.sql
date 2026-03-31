@@ -1,0 +1,6 @@
+INSERT INTO policy_sources (name, url, category, description) VALUES
+('NY DFS Cybersecurity Regulation — 23 NYCRR 500', 'https://www.dfs.ny.gov/industry_guidance/cybersecurity', 'Cybersecurity', 'New York cybersecurity requirements for financial services companies including MFA, penetration testing, and 72-hour breach notification.'),
+('Amazon FBA Compliance Requirements', 'https://sellercentral.amazon.com/help/hub/reference/external/G201030350', 'Platform Policy', 'Amazon FBA prep standards, barcode requirements, hazmat restrictions, and regulatory compliance documentation.'),
+('State Salary Transparency Laws', 'https://www.paycor.com/resource-center/articles/pay-transparency-laws-by-state/', 'Employment Law', 'Compilation of state pay transparency requirements with 14 states requiring salary range disclosure in job postings.'),
+('FTC Wool Products Labeling Rules', 'https://www.ftc.gov/legal-library/browse/rules/wool-products-labeling-rules', 'Product Safety', 'FTC rules requiring disclosure of fiber content, manufacturer name, and country of origin on wool product labels.'),
+('FDA Laboratory Developed Tests Rule', 'https://www.fda.gov/medical-devices/in-vitro-diagnostics/laboratory-developed-tests', 'FDA Regulation', 'FDA regulatory framework and enforcement discretion policy for laboratory developed diagnostic tests.');
