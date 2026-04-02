@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Logo from "@/components/Logo";
 import { useToast } from "@/hooks/use-toast";
@@ -47,10 +48,8 @@ const AcceptInvite = () => {
   const checkInvite = async () => {
     setInviteLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-team", {
-        body: { action: "check_invite" },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("manage-team", { action: "check_invite" });
+      if (error) throw new Error(error);
       if (data.found) {
         setInvite(data.invite);
       }
@@ -66,10 +65,8 @@ const AcceptInvite = () => {
     if (!invite) return;
     setAcceptLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-team", {
-        body: { action: "accept_invite", invite_id: invite.id },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("manage-team", { action: "accept_invite", invite_id: invite.id });
+      if (error) throw new Error(error);
       if (data.error) throw new Error(data.error);
       toast({ title: "Welcome to the team!", description: `You've joined ${invite.organization_name}.` });
       navigate("/dashboard", { replace: true });

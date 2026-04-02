@@ -8,6 +8,7 @@ import OnboardingStepper from "@/components/onboarding/OnboardingStepper";
 import { WelcomeBackBanner } from "@/components/onboarding/WelcomeBackBanner";
 import { useOnboardingGuard } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { STRIPE_TIERS, TierKey } from "@/lib/stripe-tiers";
 import { cn } from "@/lib/utils";
@@ -49,15 +50,13 @@ const PlanStep = () => {
     const tier = STRIPE_TIERS[tierKey];
     setCheckingOut(tierKey);
 
-    const { data, error } = await supabase.functions.invoke("create-checkout", {
-      body: { priceId: tier.priceId },
-    });
+    const { data, error } = await apiCall("create-checkout", { priceId: tier.priceId });
 
     if (error || !data?.url) {
       toast({
         variant: "destructive",
         title: "Checkout error",
-        description: error?.message || "Could not create checkout session.",
+        description: error || "Could not create checkout session.",
       });
       setCheckingOut(null);
       return;

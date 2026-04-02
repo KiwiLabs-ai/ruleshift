@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useOrganizationId } from "./use-dashboard-data";
 
 export interface ArchiveFilters {
@@ -80,10 +81,8 @@ export function useArchiveData() {
     queryKey: ["archive-search", orgId, searchQuery],
     enabled: !!orgId && !!searchQuery,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("search-briefs", {
-        body: { query: searchQuery, limit: 50 },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("search-briefs", { query: searchQuery, limit: 50 });
+      if (error) throw new Error(error);
       return data?.results ?? [];
     },
   });

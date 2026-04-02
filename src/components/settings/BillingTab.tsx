@@ -6,7 +6,7 @@ import { useSubscriptionStatus } from "@/hooks/use-settings-data";
 import { useOrganizationId } from "@/hooks/use-dashboard-data";
 import { useActiveSources, useBriefsThisMonth } from "@/hooks/use-dashboard-data";
 import { STRIPE_TIERS, TierKey } from "@/lib/stripe-tiers";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { CreditCard, ExternalLink, ArrowUpRight } from "lucide-react";
 import {
@@ -37,8 +37,8 @@ export function BillingTab() {
 
   const handleManageBilling = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
-      if (error) throw error;
+      const { data, error } = await apiCall("customer-portal");
+      if (error) throw new Error(error);
       if (data?.url) window.open(data.url, "_blank");
     } catch {
       toast({ title: "Unable to open billing portal", variant: "destructive" });
@@ -47,10 +47,8 @@ export function BillingTab() {
 
   const handleChangePlan = async (priceId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("create-checkout", { priceId });
+      if (error) throw new Error(error);
       if (data?.url) window.open(data.url, "_blank");
     } catch {
       toast({ title: "Unable to start checkout", variant: "destructive" });

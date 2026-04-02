@@ -1,12 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useOrganizationId } from "@/hooks/use-dashboard-data";
 
 async function invokeManageSources(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke("manage-sources", {
-    body,
-  });
-  if (error) throw error;
+  const { data, error } = await apiCall("manage-sources", body);
+  if (error) throw new Error(error);
   if (data?.error) throw new Error(data.error);
   return data;
 }
@@ -90,10 +89,8 @@ export function useSourcesData() {
 
   const checkSourceMutation = useMutation({
     mutationFn: async ({ sourceId, orgId }: { sourceId: string; orgId: string }) => {
-      const { data, error } = await supabase.functions.invoke("monitor-sources", {
-        body: { source_id: sourceId, org_id: orgId },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("monitor-sources", { source_id: sourceId, org_id: orgId });
+      if (error) throw new Error(error);
       return data;
     },
     onSuccess: invalidateAll,
@@ -101,10 +98,8 @@ export function useSourcesData() {
 
   const checkAllSourcesMutation = useMutation({
     mutationFn: async ({ orgId, batchSize }: { orgId: string; batchSize?: number }) => {
-      const { data, error } = await supabase.functions.invoke("monitor-sources", {
-        body: { org_id: orgId, batch_size: batchSize ?? 100 },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("monitor-sources", { org_id: orgId, batch_size: batchSize ?? 100 });
+      if (error) throw new Error(error);
       return data;
     },
     onSuccess: invalidateAll,

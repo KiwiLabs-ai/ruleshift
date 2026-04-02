@@ -11,7 +11,7 @@ import {
 import { useAuditLog } from "@/hooks/use-settings-data";
 import { useOrganizationId } from "@/hooks/use-dashboard-data";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 
 const actionColors: Record<string, string> = {
   source_added: "bg-green-100 text-green-800 border-green-300",
@@ -61,25 +61,16 @@ export function AuditLogTab() {
     if (!orgId) return;
     setExporting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const params = new URLSearchParams({ org_id: orgId });
+      const body: Record<string, any> = { org_id: orgId };
       if (dateRange !== "all") {
-        params.set("start_date", subDays(new Date(), parseInt(dateRange)).toISOString());
+        body.start_date = subDays(new Date(), parseInt(dateRange)).toISOString();
       }
 
-      const { data, error } = await supabase.functions.invoke("export-audit-log", {
-        body: {
-          org_id: orgId,
-          start_date: dateRange !== "all" ? subDays(new Date(), parseInt(dateRange)).toISOString() : undefined,
-        },
-      });
+      const { error, rawResponse } = await apiCall("export-audit-log", body, { raw: true });
+      if (error) throw new Error(error);
+      if (!rawResponse) throw new Error("No response received");
 
-      if (error) throw error;
-
-      // data comes back as text from the edge function
-      const csvContent = typeof data === "string" ? data : JSON.stringify(data);
+      const csvContent = await rawResponse.text();
       const blob = new Blob([csvContent], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

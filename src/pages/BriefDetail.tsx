@@ -13,6 +13,7 @@ import { useState, useMemo } from "react";
 import { differenceInDays } from "date-fns";
 import { useOrganizationId } from "@/hooks/use-dashboard-data";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -45,10 +46,8 @@ const BriefDetail = () => {
     if (!brief || !alert || !canRegenerate) return;
     setIsRegenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-brief", {
-        body: { alert_id: alert.id, org_source_id: orgSourceId },
-      });
-      if (error) throw error;
+      const { data, error } = await apiCall("generate-brief", { alert_id: alert.id, org_source_id: orgSourceId });
+      if (error) throw new Error(error);
       await queryClient.invalidateQueries({ queryKey: ["brief-detail", briefId] });
       toast({ title: "Brief regenerated", description: "Brief regenerated successfully." });
     } catch (err: any) {
@@ -123,13 +122,11 @@ const BriefDetail = () => {
     if (!briefId || !orgId) return;
     setIsExportingPdf(true);
     try {
-      const { data, error } = await supabase.functions.invoke("export-brief-pdf", {
-        body: { brief_id: briefId, org_id: orgId },
-      });
-      if (error) throw error;
+      const { error, rawResponse } = await apiCall("export-brief-pdf", { brief_id: briefId, org_id: orgId }, { raw: true });
+      if (error) throw new Error(error);
+      if (!rawResponse) throw new Error("No response received");
 
-      // data is an ArrayBuffer or Blob from the edge function
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
+      const blob = await rawResponse.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

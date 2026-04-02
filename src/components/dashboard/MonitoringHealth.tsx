@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -50,10 +50,8 @@ export function MonitoringHealth({ data, loading, orgId }: Props) {
   const handleFullScan = async () => {
     setScanning(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke("monitor-sources", {
-        body: { org_id: orgId, batch_size: 100 },
-      });
-      if (error) throw error;
+      const { data: result, error } = await apiCall("monitor-sources", { org_id: orgId, batch_size: 100 });
+      if (error) throw new Error(error);
       toast({
         title: "Full scan complete",
         description: `Checked ${result.sources_checked} sources. ${result.changes_detected} change(s) detected.`,

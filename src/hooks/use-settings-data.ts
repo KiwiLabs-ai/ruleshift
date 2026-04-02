@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationId } from "./use-dashboard-data";
 
@@ -125,8 +126,8 @@ export function useSubscriptionStatus() {
   return useQuery({
     queryKey: ["subscription-status"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("check-subscription");
-      if (error) throw error;
+      const { data, error } = await apiCall("check-subscription");
+      if (error) throw new Error(error);
       return data as {
         subscribed: boolean;
         product_id: string | null;
