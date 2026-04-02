@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { rateLimitJson } from "./_shared/rate-limit";
-import { RateLimiter } from "./_shared/rate-limit";
+import { rateLimitJson } from "./_shared/rate-limit.js";
+import { RateLimiter } from "./_shared/rate-limit.js";
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL!,
@@ -404,9 +404,11 @@ export default async function handler(
     // Verify token and get user
     const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(token);
 
-    if (userError || !user) {
+    if (userError || !user?.user) {
       return res.status(401).json({ error: "Invalid token" });
     }
+
+    const authUser = user.user;
 
     // Get brief_id from query params or body
     let brief_id: string | undefined;
@@ -437,7 +439,7 @@ export default async function handler(
       .from("organization_members")
       .select("id")
       .eq("organization_id", brief.organization_id)
-      .eq("user_id", user.id)
+      .eq("user_id", authUser.id)
       .single();
 
     if (membershipError || !membership) {

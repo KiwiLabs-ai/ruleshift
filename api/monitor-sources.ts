@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
-import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit";
+import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

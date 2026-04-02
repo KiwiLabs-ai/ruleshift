@@ -66,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (hasActiveSub) {
       const subscription = allSubs[0];
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
+      subscriptionEnd = new Date((subscription as any).current_period_end * 1000).toISOString();
       status = subscription.status;
       priceId = subscription.items.data[0].price.id;
       productId = subscription.items.data[0].price.product;
