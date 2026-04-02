@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status: subscription.status,
           price_id: subItem?.price?.id ?? null,
           product_id: (subItem?.price?.product as string) ?? null,
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
           cancel_at_period_end: subscription.cancel_at_period_end,
         };
 
@@ -124,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             status: subscription.status,
             price_id: subItem?.price?.id ?? null,
             product_id: (subItem?.price?.product as string) ?? null,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            current_period_end: new Date((subscription as any).current_period_end * 1000).toISOString(),
             cancel_at_period_end: subscription.cancel_at_period_end,
           })
           .eq("stripe_subscription_id", subscription.id);
@@ -169,7 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subId = invoice.subscription as string;
+        const subId = (invoice as any).subscription as string;
         console.log(`[STRIPE-WEBHOOK] Processing invoice.payment_failed for subscription ${subId}`);
 
         if (subId) {

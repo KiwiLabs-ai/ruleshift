@@ -302,7 +302,7 @@ export default async function handler(
         const dashboardUrl = `${process.env.APP_URL}/alerts`;
         const emailHtml = buildDigestEmailHtml(
           items,
-          membership.organizations?.name || "Your Organization",
+          (membership as any).organizations?.name || "Your Organization",
           dashboardUrl
         );
 
