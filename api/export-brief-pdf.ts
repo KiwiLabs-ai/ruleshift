@@ -1,18 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { rateLimitJson } from "./_shared/rate-limit.js";
-import { RateLimiter } from "./_shared/rate-limit.js";
+import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
 const supabaseAdmin = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const rateLimiter = new RateLimiter({
-  points: 10, // 10 requests
-  duration: 3600, // per hour
-});
 
 // Color definitions
 const NAVY = rgb(0.102, 0.122, 0.239);
@@ -447,10 +441,9 @@ export default async function handler(
     }
 
     // Rate limit: 10 per org per hour
-    try {
-      await rateLimiter.consume(brief.organization_id, 1);
-    } catch (error: any) {
-      const rlInfo = rateLimitJson(error.msBeforeNext / 1000);
+    const rl = await checkRateLimit(brief.organization_id, "export-brief-pdf", 10, 3600);
+    if (!rl.allowed) {
+      const rlInfo = rateLimitJson(rl.reset_at);
       return res
         .setHeader("Retry-After", rlInfo.retryAfter)
         .status(429)

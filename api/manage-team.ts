@@ -324,8 +324,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(403).json({ error: "Only owners and admins can remove team members" });
         }
 
-        const { data: targetProfile } = await adminClient
-          .from("profiles")
+        const { data: targetProfile } = await (adminClient
+          .from("profiles") as any)
           .select("email:auth.users(email), role")
           .eq("user_id", user_id)
           .single();
@@ -338,12 +338,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { error } = await adminClient
           .from("profiles")
-          .update({ organization_id: null, role: null })
+          .update({ organization_id: null, role: null } as any)
           .eq("user_id", user_id)
           .eq("organization_id", orgId);
         if (error) throw error;
 
-        await adminClient.from("activity_events").insert({
+        await adminClient.from("activity_events" as any).insert({
           organization_id: orgId,
           event_type: "member_removed",
           description: `Removed ${targetEmail} from team`,
@@ -392,8 +392,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(403).json({ error: "Only owners can change team member roles" });
         }
 
-        const { data: targetProfile } = await adminClient
-          .from("profiles")
+        const { data: targetProfile } = await (adminClient
+          .from("profiles") as any)
           .select("email:auth.users(email)")
           .eq("user_id", user_id)
           .single();
@@ -406,12 +406,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { error } = await adminClient
           .from("profiles")
-          .update({ role })
+          .update({ role } as any)
           .eq("user_id", user_id)
           .eq("organization_id", orgId);
         if (error) throw error;
 
-        await adminClient.from("activity_events").insert({
+        await adminClient.from("activity_events" as any).insert({
           organization_id: orgId,
           event_type: "member_role_updated",
           description: `Updated ${targetEmail} role to ${role}`,

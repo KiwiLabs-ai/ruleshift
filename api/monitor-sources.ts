@@ -151,12 +151,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         let html = "";
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
           const response = await fetch(url, {
             headers: {
               "User-Agent": "RuleShift-Monitor/1.0",
             },
-            timeout: 30000,
+            signal: controller.signal,
           });
+          clearTimeout(timeoutId);
 
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
