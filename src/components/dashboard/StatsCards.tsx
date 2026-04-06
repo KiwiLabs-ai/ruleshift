@@ -34,6 +34,25 @@ interface StatsCardsProps {
   loading?: boolean;
 }
 
+function getTrend(label: string, value: number): { text: string; color: string } {
+  switch (label) {
+    case "Active Sources":
+      if (value === 0) return { text: "No sources yet", color: "text-muted-foreground" };
+      return { text: `${value} source${value === 1 ? "" : "s"} monitored`, color: "text-green-600" };
+    case "Unread Alerts":
+      if (value === 0) return { text: "All caught up", color: "text-green-600" };
+      return { text: `${value} need${value === 1 ? "s" : ""} review`, color: "text-yellow-600" };
+    case "This Month's Changes":
+      if (value === 0) return { text: "No changes detected", color: "text-muted-foreground" };
+      return { text: `${value} change${value === 1 ? "" : "s"} this month`, color: "text-muted-foreground" };
+    case "Critical Items":
+      if (value === 0) return { text: "No critical issues", color: "text-green-600" };
+      return { text: "Needs attention", color: "text-destructive" };
+    default:
+      return { text: "", color: "text-muted-foreground" };
+  }
+}
+
 const cardConfigs = [
   {
     label: "Active Sources",
@@ -41,8 +60,6 @@ const cardConfigs = [
     borderColor: "border-t-secondary",
     iconBg: "bg-secondary/[0.08]",
     iconText: "text-secondary",
-    trend: "↑ 4 added this month",
-    trendColor: "text-green-600",
   },
   {
     label: "Unread Alerts",
@@ -50,8 +67,6 @@ const cardConfigs = [
     borderColor: "border-t-yellow-500",
     iconBg: "bg-yellow-500/[0.08]",
     iconText: "text-yellow-600",
-    trend: "↑ 12% from last month",
-    trendColor: "text-green-600",
   },
   {
     label: "This Month's Changes",
@@ -59,8 +74,6 @@ const cardConfigs = [
     borderColor: "border-t-primary",
     iconBg: "bg-primary/[0.08]",
     iconText: "text-primary",
-    trend: "3 new this week",
-    trendColor: "text-muted-foreground",
   },
   {
     label: "Critical Items",
@@ -68,13 +81,12 @@ const cardConfigs = [
     borderColor: "border-t-destructive",
     iconBg: "bg-destructive/[0.08]",
     iconText: "text-destructive",
-    trend: "Needs attention",
-    trendColor: "text-destructive",
   },
 ];
 
 function StatCard({ config, value, isCriticalActive }: { config: typeof cardConfigs[0]; value: number; isCriticalActive: boolean }) {
   const display = useCountUp(value);
+  const trend = getTrend(config.label, value);
 
   return (
     <Card
@@ -89,7 +101,7 @@ function StatCard({ config, value, isCriticalActive }: { config: typeof cardConf
         <div>
           <p className="text-2xl font-bold text-foreground">{display}</p>
           <p className="text-xs text-muted-foreground">{config.label}</p>
-          <p className={`text-[11px] mt-0.5 ${config.trendColor}`}>{config.trend}</p>
+          <p className={`text-[11px] mt-0.5 ${trend.color}`}>{trend.text}</p>
         </div>
       </CardContent>
     </Card>
