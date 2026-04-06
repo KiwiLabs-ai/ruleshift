@@ -38,8 +38,8 @@ export async function checkRateLimit(
 
   if (error) {
     console.error("[RATE_LIMIT] Query error:", error.message);
-    // Fail open — don't block requests if rate limiter is broken
-    return { allowed: true, remaining: limit, reset_at: resetAt.toISOString() };
+    // Fail closed — block requests when rate limiter DB is unavailable
+    return { allowed: false, remaining: 0, reset_at: resetAt.toISOString() };
   }
 
   const currentCount = count ?? 0;

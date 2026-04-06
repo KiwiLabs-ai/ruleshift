@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 

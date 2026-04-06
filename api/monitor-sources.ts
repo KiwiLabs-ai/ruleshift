@@ -1,15 +1,53 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
-import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
-
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 function setCors(res: VercelResponse) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+}
+
+function isPrivateIP(hostname: string): boolean {
+  const parts = hostname.split(".").map(Number);
+
+  if (hostname === "localhost" || hostname === "::1" || hostname === "0.0.0.0") {
+    return true;
+  }
+
+  if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
+    // 127.x.x.x
+    if (parts[0] === 127) return true;
+    // 10.x.x.x
+    if (parts[0] === 10) return true;
+    // 172.16.0.0 - 172.31.255.255
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    // 192.168.x.x
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    // 169.254.x.x
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    // 0.0.0.0
+    if (parts[0] === 0) return true;
+  }
+
+  return false;
+}
+
+function validateUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    if (isPrivateIP(parsed.hostname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sha256(text: string): string {
@@ -46,66 +84,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(200).end();
 
+  const authHeader = req.headers.authorization;
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-
-    let orgId: string | null = null;
-    let skipRateLimit = false;
-
-    const authHeader = req.headers.authorization;
-    if (authHeader === `Bearer ${process.env.CRON_SECRET}`) {
-      skipRateLimit = true;
-    } else if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
-      const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-
-      const { data: userData, error: userError } = await supabase.auth.getUser(token);
-      if (userError || !userData?.user) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", userData.user.id)
-        .single();
-
-      if (profileError || !profile?.organization_id) {
-        return res.status(403).json({ error: "No organization found" });
-      }
-      orgId = profile.organization_id;
-    }
-
-    if (orgId && !skipRateLimit) {
-      const rl = await checkRateLimit(orgId, "monitor-sources", 10, 3600);
-      if (!rl.allowed) {
-        const rlInfo = rateLimitJson(rl.reset_at);
-        return res.setHeader("Retry-After", rlInfo.retryAfter).status(429).json(rlInfo.body);
-      }
-    }
 
     const { org_id: requestOrgId, batch_size = 20 } = req.body || {};
 
     let sourcesToProcess = [];
 
-    if (skipRateLimit && requestOrgId) {
+    if (requestOrgId) {
       const { data: sources, error } = await adminClient
         .from("organization_sources")
         .select("id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, policy_sources(url)")
         .eq("organization_id", requestOrgId)
-        .eq("status", "active")
-        .order("last_checked_at", { ascending: true, nullsFirst: true })
-        .limit(batch_size);
-
-      if (error) throw error;
-      sourcesToProcess = sources ?? [];
-    } else if (orgId) {
-      const { data: sources, error } = await adminClient
-        .from("organization_sources")
-        .select("id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, policy_sources(url)")
-        .eq("organization_id", orgId)
         .eq("status", "active")
         .order("last_checked_at", { ascending: true, nullsFirst: true })
         .limit(batch_size);
@@ -146,6 +141,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!url) {
           console.warn(`Skipping source ${source.id}: no URL`);
+          continue;
+        }
+
+        if (!validateUrl(url)) {
+          console.warn(`Skipping source ${source.id}: invalid or private URL`);
+          errors.push({ source_id: source.id, error: "Invalid or private URL blocked" });
           continue;
         }
 

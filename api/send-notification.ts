@@ -34,7 +34,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 function setCors(res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Origin", process.env.ALLOWED_ORIGIN || "*");
+  res.setHeader("Access-Control-Allow-Origin", process.env.APP_URL || "https://ruleshift.ai");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
@@ -251,10 +251,38 @@ export default async function handler(
   }
 
   try {
+    // Authenticate caller
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const isCron = token === process.env.CRON_SECRET;
+
     const { brief_id, organization_id } = req.body;
 
     if (!brief_id || !organization_id) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Verify org membership for non-cron callers
+    if (!isCron) {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
+      const { data: membership, error: membershipError } = await supabaseAdmin
+        .from("organization_members")
+        .select("id")
+        .eq("organization_id", organization_id)
+        .eq("user_id", userData.user.id)
+        .single();
+
+      if (membershipError || !membership) {
+        return res.status(403).json({ error: "Not a member of this organization" });
+      }
     }
 
     // Fetch brief and alert severity

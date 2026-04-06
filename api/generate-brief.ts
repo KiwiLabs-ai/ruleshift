@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -58,9 +58,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { alert_id, organization_id: bodyOrgId, content, source_name } = req.body;
 
-    const targetOrgId = bodyOrgId || orgId;
+    // Cron callers (skipRateLimit) may pass org_id in the body; user callers must use their own org
+    const targetOrgId = skipRateLimit ? (bodyOrgId || orgId) : orgId;
     if (!targetOrgId) {
-      return res.status(403).json({ error: "No organization context" });
+      return res.status(403).json({ error: "No organization context. User has no organization." });
     }
 
     if (!alert_id || !content) {

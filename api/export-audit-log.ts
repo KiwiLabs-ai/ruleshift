@@ -69,13 +69,13 @@ export default async function handler(
     const token = authHeader.substring(7);
 
     // Verify token and get user
-    const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(token);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
 
-    if (userError || !user?.user) {
+    if (userError || !userData?.user) {
       return res.status(401).json({ error: "Invalid token" });
     }
 
-    const authUser = user.user;
+    const authUser = userData.user;
 
     // Get org_id and dates from query params or body
     let org_id: string | undefined;
