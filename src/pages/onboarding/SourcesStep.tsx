@@ -139,15 +139,14 @@ const SourcesStep = () => {
     setCustomSources((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Compute total unique sources
+  // Compute total unique sources from selected templates
   const allSourceIds = useMemo(() => {
     const ids = new Set<string>();
-    const combined = [...industryTemplates, ...allTemplates];
-    combined
+    allTemplates
       .filter((t) => selectedTemplateIds.includes(t.id))
-      .forEach((t) => t.source_ids.forEach((id: string) => ids.add(id)));
+      .forEach((t) => (t.source_ids || []).forEach((id: string) => ids.add(id)));
     return ids;
-  }, [selectedTemplateIds, industryTemplates, allTemplates]);
+  }, [selectedTemplateIds, allTemplates]);
 
   const totalSources = allSourceIds.size + customSources.length;
 
