@@ -33,7 +33,6 @@ const tiers = [
       "Impact briefs with action items",
       "Full brief archive",
       "Up to 5 users",
-      "Slack integration",
     ],
     highlighted: true,
     cta: "Start Free Trial — Most Popular",

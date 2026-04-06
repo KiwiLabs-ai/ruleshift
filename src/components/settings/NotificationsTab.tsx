@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotificationPrefs, useUpdateNotificationPrefs } from "@/hooks/use-settings-data";
 import { useToast } from "@/hooks/use-toast";
@@ -19,8 +20,6 @@ export function NotificationsTab() {
   const { toast } = useToast();
 
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [slackEnabled, setSlackEnabled] = useState(false);
-  const [slackWebhook, setSlackWebhook] = useState("");
   const [digestFrequency, setDigestFrequency] = useState("daily");
   const [preferredTime, setPreferredTime] = useState("09:00");
   const [preferredDay, setPreferredDay] = useState("Monday");
@@ -29,8 +28,6 @@ export function NotificationsTab() {
   useEffect(() => {
     if (prefs) {
       setEmailEnabled(prefs.email_enabled);
-      setSlackEnabled(prefs.slack_enabled);
-      setSlackWebhook(prefs.slack_webhook_url ?? "");
       setDigestFrequency(prefs.digest_frequency);
       setPreferredTime(prefs.preferred_time ?? "09:00");
       setPreferredDay(prefs.preferred_day ? prefs.preferred_day.charAt(0).toUpperCase() + prefs.preferred_day.slice(1) : "Monday");
@@ -42,8 +39,6 @@ export function NotificationsTab() {
     try {
       await updatePrefs.mutateAsync({
         email_enabled: emailEnabled,
-        slack_enabled: slackEnabled,
-        slack_webhook_url: slackEnabled ? slackWebhook.trim() || null : null,
         digest_frequency: digestFrequency,
         preferred_time: preferredTime,
         preferred_day: digestFrequency === "weekly" ? preferredDay.toLowerCase() : null,
@@ -74,29 +69,6 @@ export function NotificationsTab() {
               <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
-          </div>
-          <div>
-            <div className="flex items-center justify-between">
-              <Label>Slack</Label>
-              <Switch checked={slackEnabled} onCheckedChange={setSlackEnabled} />
-            </div>
-            {slackEnabled && (
-              <div className="mt-2">
-                <Input
-                  value={slackWebhook}
-                  onChange={(e) => setSlackWebhook(e.target.value)}
-                  placeholder="https://hooks.slack.com/services/..."
-                />
-                <a
-                  href="https://api.slack.com/messaging/webhooks"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-block text-xs text-primary hover:underline"
-                >
-                  How to set up a Slack webhook →
-                </a>
-              </div>
-            )}
           </div>
         </div>
       </div>

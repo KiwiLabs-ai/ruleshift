@@ -21,8 +21,6 @@ const NotificationsStep = () => {
   const { toast } = useToast();
 
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [slackEnabled, setSlackEnabled] = useState(false);
-  const [slackWebhook, setSlackWebhook] = useState("");
   const [digestFrequency, setDigestFrequency] = useState("daily");
   const [preferredTime, setPreferredTime] = useState("09:00");
   const [preferredDay, setPreferredDay] = useState("Monday");
@@ -56,8 +54,6 @@ const NotificationsStep = () => {
     if (data) {
       setExistingPrefsId(data.id);
       setEmailEnabled(data.email_enabled);
-      setSlackEnabled(data.slack_enabled);
-      setSlackWebhook(data.slack_webhook_url ?? "");
       setDigestFrequency(data.digest_frequency);
       setPreferredTime(data.preferred_time ?? "09:00");
       setPreferredDay(data.preferred_day ? data.preferred_day.charAt(0).toUpperCase() + data.preferred_day.slice(1) : "Monday");
@@ -81,8 +77,6 @@ const NotificationsStep = () => {
     const payload = {
       user_id: user!.id,
       email_enabled: emailEnabled,
-      slack_enabled: slackEnabled,
-      slack_webhook_url: slackEnabled ? slackWebhook.trim() || null : null,
       digest_frequency: digestFrequency,
       preferred_time: preferredTime,
       preferred_day: digestFrequency === "weekly" ? preferredDay.toLowerCase() : null,
@@ -141,24 +135,6 @@ const NotificationsStep = () => {
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
                 </div>
                 <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
-              </div>
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Slack</Label>
-                  <Switch checked={slackEnabled} onCheckedChange={setSlackEnabled} />
-                </div>
-                {slackEnabled && (
-                  <div className="mt-2">
-                    <Input
-                      value={slackWebhook}
-                      onChange={(e) => setSlackWebhook(e.target.value)}
-                      placeholder="https://hooks.slack.com/services/..."
-                    />
-                    <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-secondary hover:underline">
-                      How to set up a Slack webhook →
-                    </a>
-                  </div>
-                )}
               </div>
             </div>
           </div>

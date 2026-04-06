@@ -64,7 +64,7 @@ const TermsOfService = () => {
                 <ul className="list-disc pl-5 space-y-1.5">
                   <li><strong className="text-card-foreground">Automated regulatory monitoring:</strong> Periodic scanning of government, regulatory, and platform policy web pages to detect content changes.</li>
                   <li><strong className="text-card-foreground">AI-generated impact briefs:</strong> When a change is detected, our AI system produces a structured summary explaining what changed and its potential impact on your business.</li>
-                  <li><strong className="text-card-foreground">Notification delivery:</strong> Alerts and digest summaries sent via email and Slack based on your configured preferences.</li>
+                  <li><strong className="text-card-foreground">Notification delivery:</strong> Alerts and digest summaries sent via email based on your configured preferences.</li>
                   <li><strong className="text-card-foreground">Archive and search:</strong> Historical access to previously generated briefs and alerts for your organization.</li>
                 </ul>
               </section>

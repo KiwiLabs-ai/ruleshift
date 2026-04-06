@@ -21,7 +21,7 @@ const steps = [
     num: "03",
     title: "Instant Delivery",
     description:
-      "Receive your brief via email, Slack, or your RuleShift dashboard — within hours, not days.",
+      "Receive your brief via email or your RuleShift dashboard — within hours, not days.",
   },
   {
     icon: ShieldCheck,

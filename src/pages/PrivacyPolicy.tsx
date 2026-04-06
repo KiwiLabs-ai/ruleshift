@@ -78,7 +78,7 @@ const PrivacyPolicy = () => {
                 <ul className="list-disc pl-5 space-y-1.5">
                   <li>To provide and maintain the regulatory monitoring service, including scanning policy sources for changes.</li>
                   <li>To generate AI-powered impact briefs that summarize and contextualize regulatory changes for your business.</li>
-                  <li>To send alerts, notifications, and digests via email and Slack based on your preferences.</li>
+                  <li>To send alerts, notifications, and digests via email based on your preferences.</li>
                   <li>To personalize your experience by recommending relevant sources and templates based on your industry.</li>
                   <li>To process subscription payments and manage your billing account.</li>
                   <li>To improve and optimize the platform through aggregated, anonymized usage analytics.</li>

@@ -84,7 +84,7 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notification_preferences")
-        .select("email_enabled, slack_enabled, digest_frequency")
+        .select("email_enabled, digest_frequency")
         .eq("user_id", user!.id)
         .single();
       if (error) return null;
@@ -102,11 +102,7 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
     return tier ? STRIPE_TIERS[tier].name : "Free";
   })();
 
-  const notifChannel = notifPrefs?.slack_enabled
-    ? "Email + Slack"
-    : notifPrefs?.email_enabled
-    ? "Email"
-    : "Email";
+  const notifChannel = notifPrefs?.email_enabled ? "Email" : "Email";
 
   const digestLabel =
     notifPrefs?.digest_frequency === "realtime"

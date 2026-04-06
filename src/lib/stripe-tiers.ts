@@ -29,7 +29,6 @@ export const STRIPE_TIERS = {
       "Impact briefs with action items",
       "Full brief archive",
       "Up to 5 users",
-      "Slack integration",
     ],
     sourceLimit: 25,
     highlighted: true,
