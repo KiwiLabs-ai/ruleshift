@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +13,16 @@ const ResetPassword = () => {
   const [ready, setReady] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    // Check for recovery token in URL hash
-    const hash = window.location.hash;
-    if (hash.includes("type=recovery")) {
+    // Check for recovery via router state (from AuthContext) or URL hash (direct link)
+    const fromState = (location.state as { recovery?: boolean })?.recovery;
+    const fromHash = window.location.hash.includes("type=recovery");
+    if (fromState || fromHash) {
       setReady(true);
     }
-  }, []);
+  }, [location.state]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();

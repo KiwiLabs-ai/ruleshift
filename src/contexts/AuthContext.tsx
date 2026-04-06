@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
 
         if (event === "PASSWORD_RECOVERY") {
-          navigate("/reset-password", { replace: true });
+          navigate("/reset-password", { replace: true, state: { recovery: true } });
         }
       }
     );
