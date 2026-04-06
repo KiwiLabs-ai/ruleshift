@@ -11,7 +11,8 @@ import { WelcomeBackBanner, markNavigatedFrom } from "@/components/onboarding/We
 import { useOnboardingGuard } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, X, ChevronDown, Sparkles, ArrowDown, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plus, X, ChevronDown, Sparkles, ArrowDown, AlertTriangle, Search } from "lucide-react";
 
 interface CustomSource {
   url: string;
@@ -42,6 +43,8 @@ const SourcesStep = () => {
   const [isReturning, setIsReturning] = useState(false);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [customUrlsOpen, setCustomUrlsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   useEffect(() => {
     if (!loading && profile) {
@@ -165,6 +168,40 @@ const SourcesStep = () => {
     return groups;
   }, [otherTemplates]);
 
+  // All unique categories across templates
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    allTemplates.forEach((t) => {
+      (t.industries || []).forEach((i: string) => cats.add(i));
+    });
+    return Array.from(cats).sort();
+  }, [allTemplates]);
+
+  // Filter templates by search and category
+  const filterTemplates = (templates: any[]) => {
+    return templates.filter((t) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        !q ||
+        t.name.toLowerCase().includes(q) ||
+        (t.description || "").toLowerCase().includes(q) ||
+        (t.key_sources || []).some((s: string) => s.toLowerCase().includes(q));
+      const matchesCategory =
+        categoryFilter === "all" || (t.industries || []).includes(categoryFilter);
+      return matchesSearch && matchesCategory;
+    });
+  };
+
+  const filteredIndustryTemplates = useMemo(
+    () => filterTemplates(industryTemplates),
+    [industryTemplates, searchQuery, categoryFilter]
+  );
+
+  const filteredOtherTemplates = useMemo(
+    () => filterTemplates(otherTemplates),
+    [otherTemplates, searchQuery, categoryFilter]
+  );
+
   // Recommendation
   const recommendation = useMemo(() => {
     if (industryTemplates.length === 0) return null;
@@ -248,6 +285,7 @@ const SourcesStep = () => {
           <Checkbox
             checked={selectedTemplateIds.includes(t.id)}
             onCheckedChange={() => toggleTemplate(t.id)}
+            onClick={(e) => e.stopPropagation()}
             className="mt-1"
           />
           <div>
@@ -308,6 +346,32 @@ const SourcesStep = () => {
           </div>
         )}
 
+        {/* Search + Category filter */}
+        {!noTemplatesAtAll && (
+          <div className="mt-5 flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search sources and templates…"
+                className="pl-9"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {allCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* No templates empty state */}
         {noTemplatesAtAll ? (
           <div className="mt-6 rounded-xl border-2 border-dashed border-muted-foreground/20 p-8 text-center">
@@ -319,49 +383,51 @@ const SourcesStep = () => {
         ) : (
           <>
             {/* Industry-matched templates */}
-            {industryTemplates.length > 0 && (
+            {industryTemplates.length > 0 && filteredIndustryTemplates.length > 0 && (
               <>
                 <p className="mt-6 mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Recommended for {orgIndustry}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {industryTemplates.map(renderTemplateCard)}
+                  {filteredIndustryTemplates.map(renderTemplateCard)}
                 </div>
               </>
             )}
 
-            {industryTemplates.length === 0 && (
+            {industryTemplates.length === 0 && !searchQuery && categoryFilter === "all" && (
               <div className="mt-6 rounded-lg border border-dashed border-muted-foreground/20 p-5 text-center text-sm text-muted-foreground">
                 No templates specifically for {orgIndustry} yet. Browse templates from other industries below, or add custom URLs.
               </div>
             )}
 
             {/* Browse all templates */}
-            {otherTemplates.length > 0 && (
+            {filteredOtherTemplates.length > 0 && (
               <Collapsible
-                open={showAllTemplates || industryTemplates.length === 0}
+                open={showAllTemplates || industryTemplates.length === 0 || !!searchQuery || categoryFilter !== "all"}
                 onOpenChange={setShowAllTemplates}
                 className="mt-5"
               >
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="gap-2 text-sm text-muted-foreground w-full justify-center">
-                    More templates from other industries
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showAllTemplates || industryTemplates.length === 0 ? "rotate-180" : ""}`} />
-                  </Button>
-                </CollapsibleTrigger>
+                {!searchQuery && categoryFilter === "all" && (
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="gap-2 text-sm text-muted-foreground w-full justify-center">
+                      More templates from other industries
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showAllTemplates || industryTemplates.length === 0 ? "rotate-180" : ""}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                )}
                 <CollapsibleContent className="mt-3 space-y-5">
-                  {Object.entries(groupedOtherTemplates).map(([industry, templates]) => (
-                    <div key={industry}>
-                      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        {industry}
-                      </p>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        {templates.map(renderTemplateCard)}
-                      </div>
-                    </div>
-                  ))}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {filteredOtherTemplates.map(renderTemplateCard)}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
+            )}
+
+            {/* No results message */}
+            {searchQuery && filteredIndustryTemplates.length === 0 && filteredOtherTemplates.length === 0 && (
+              <div className="mt-6 rounded-lg border border-dashed border-muted-foreground/20 p-5 text-center text-sm text-muted-foreground">
+                No templates match "{searchQuery}". Try a different search or add a custom URL below.
+              </div>
             )}
           </>
         )}
