@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Mail, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,19 @@ import { useToast } from "@/hooks/use-toast";
 const VerifyEmail = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [resending, setResending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<"verified" | "not_verified" | null>(null);
 
-  const email = user?.email ?? "";
+  const email = user?.email ?? (location.state as { email?: string })?.email ?? "";
 
   const handleResend = async () => {
-    if (!email) return;
+    if (!email) {
+      toast({ variant: "destructive", title: "Email not found", description: "Please sign up again or log in." });
+      return;
+    }
     setResending(true);
     const { error } = await supabase.auth.resend({ type: "signup", email });
     setResending(false);

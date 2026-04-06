@@ -28,6 +28,7 @@ const Signup = () => {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [alreadyExists, setAlreadyExists] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const strength = getPasswordStrength(password);
@@ -39,7 +40,7 @@ const Signup = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -50,10 +51,41 @@ const Signup = () => {
     setLoading(false);
     if (error) {
       toast({ variant: "destructive", title: "Signup failed", description: error.message });
+    } else if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      setAlreadyExists(true);
     } else {
       setSuccess(true);
     }
   };
+
+  if (alreadyExists) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center gradient-mesh px-4 overflow-hidden animate-[auth-fade-in_500ms_ease-out_both]">
+        <div className="absolute -top-32 -right-32 w-96 h-96 bg-glow-teal/10 blur-3xl rounded-full pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-navy-dark/40 blur-3xl rounded-full pointer-events-none" />
+        <div className="auth-card w-full max-w-md rounded-3xl bg-card/80 backdrop-blur-sm ring-1 ring-white/5 p-8 shadow-2xl text-center relative overflow-hidden">
+          <div className="absolute inset-0 auth-dots pointer-events-none" />
+          <div className="relative z-10">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary/10">
+              <Logo size="md" />
+            </div>
+            <h1 className="text-2xl font-bold text-card-foreground">Account already exists</h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              An account with <strong>{email}</strong> already exists. Please log in instead.
+            </p>
+            <div className="mt-6 space-y-3">
+              <Button className="w-full bg-secondary text-secondary-foreground hover:bg-teal-light" onClick={() => navigate("/login")}>
+                Go to Login
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setAlreadyExists(false)}>
+                Try a different email
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -70,7 +102,7 @@ const Signup = () => {
             <p className="mt-3 text-sm text-muted-foreground">
               We sent a verification link to <strong>{email}</strong>. Click the link to activate your account.
             </p>
-            <Button variant="outline" className="mt-6" onClick={() => navigate("/verify-email")}>
+            <Button variant="outline" className="mt-6" onClick={() => navigate("/verify-email", { state: { email } })}>
               I've verified my email
             </Button>
           </div>
