@@ -117,6 +117,16 @@ const CompanyStep = () => {
       orgId = org.id;
     }
 
+    // Add user as org owner if not already a member
+    if (!existingOrgId) {
+      await supabase.from("organization_members").insert({
+        organization_id: orgId,
+        user_id: user!.id,
+        role: "owner",
+        accepted_at: new Date().toISOString(),
+      });
+    }
+
     // Update profile
     await supabase
       .from("profiles")
