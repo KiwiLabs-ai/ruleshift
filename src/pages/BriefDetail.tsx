@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
 import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2 } from "lucide-react";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -303,8 +304,8 @@ const BriefDetail = () => {
         </div>
 
         {!sections.whatChanged && !sections.whoAffected && sections.actions.length === 0 && content && (
-          <div className="prose prose-sm max-w-none text-muted-foreground">
-            <p className="whitespace-pre-wrap">{content}</p>
+          <div className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-headings:font-semibold prose-h1:text-xl prose-h2:text-base prose-h3:text-sm prose-p:text-sm prose-p:text-muted-foreground prose-p:leading-relaxed prose-li:text-sm prose-li:text-muted-foreground prose-strong:text-foreground">
+            <ReactMarkdown>{content}</ReactMarkdown>
           </div>
         )}
 

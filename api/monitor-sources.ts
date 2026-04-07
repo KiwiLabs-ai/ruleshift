@@ -61,8 +61,49 @@ function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+// Decode the most common HTML entities. Not exhaustive — covers what shows up
+// in regulatory pages. Anything else is left as-is.
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
+}
+
+// Strip a tag and everything inside it (including the closing tag).
+// Used to remove <script>, <style>, <noscript> etc., whose contents are
+// useless for policy analysis and would otherwise dominate the extracted text.
+function stripBlockElement(html: string, tagName: string): string {
+  const re = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>`, "gi");
+  return html.replace(re, " ");
+}
+
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]*>/g, "").trim();
+  return (
+    decodeEntities(
+      stripBlockElement(
+        stripBlockElement(
+          stripBlockElement(
+            // strip HTML comments first
+            html.replace(/<!--[\s\S]*?-->/g, " "),
+            "script"
+          ),
+          "style"
+        ),
+        "noscript"
+      )
+        // remove all remaining tags
+        .replace(/<[^>]*>/g, " ")
+    )
+      // collapse whitespace
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 function extractBySelector(html: string, selector: string | null): string {
