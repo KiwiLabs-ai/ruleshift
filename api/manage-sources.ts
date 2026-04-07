@@ -360,7 +360,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: `Unknown action: ${action}` });
     }
   } catch (err) {
-    console.error("manage-sources error:", err);
-    return res.status(500).json({ error: (err as Error).message ?? "Internal error" });
+    const e = err as any;
+    console.error("manage-sources error:", e?.message, e?.details, e?.hint, e?.code, e?.stack);
+    return res.status(500).json({ error: e?.message ?? "Internal error" });
   }
 }

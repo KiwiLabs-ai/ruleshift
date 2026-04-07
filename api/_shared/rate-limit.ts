@@ -37,9 +37,9 @@ export async function checkRateLimit(
     .gte("window_start", windowStart.toISOString());
 
   if (error) {
-    console.error("[RATE_LIMIT] Query error:", error.message);
-    // Fail closed — block requests when rate limiter DB is unavailable
-    return { allowed: false, remaining: 0, reset_at: resetAt.toISOString() };
+    console.error("[RATE_LIMIT] Query error:", error.message, error.details, error.hint);
+    // Allow request but log — rate limiter should not block the entire app
+    return { allowed: true, remaining: limit, reset_at: resetAt.toISOString() };
   }
 
   const currentCount = count ?? 0;
