@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
+import { generateBriefForAlert } from "./_shared/brief-core.js";
 
 // Single-source user calls await generate-brief, which can take up to ~60s
 // for the Anthropic round-trip. Give this function enough budget to cover it.
@@ -308,37 +309,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (!alertErr && alert?.id) {
-            // In single-source (user "Check Now") mode, await the brief call so
-            // it actually completes — Vercel suspends the function as soon as
-            // the handler returns, which kills any in-flight fire-and-forget
-            // fetch. In cron/batch mode we keep it fire-and-forget because the
-            // batch may spawn many briefs.
-            const briefRequest = fetch(`${process.env.APP_URL}/api/generate-brief`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${process.env.CRON_SECRET}`,
-              },
-              body: JSON.stringify({
-                alert_id: alert.id,
-                organization_id: sourceOrgId,
+            // Call the brief generator in-process. We used to POST to
+            // /api/generate-brief here, but Vercel's internal fetch fan-out
+            // dropped req.body fields intermittently, leaving alerts with no
+            // brief_id. Calling the shared core directly is faster and more
+            // reliable. In single-source (user "Check Now") mode we await it
+            // so the toast can confirm the brief is ready; in cron/batch mode
+            // we let it run sequentially per source.
+            try {
+              await generateBriefForAlert({
+                adminClient,
+                alertId: alert.id,
+                organizationId: sourceOrgId,
                 content: content.substring(0, 2000),
-                source_name: sourceName,
-              }),
-            }).catch((err) => {
-              console.error("Failed to trigger brief generation:", err);
-              return null;
-            });
-
-            if (requestSourceId) {
-              const briefRes = await briefRequest;
-              if (!briefRes || !briefRes.ok) {
-                console.error(
-                  "generate-brief returned non-ok status",
-                  briefRes?.status,
-                  await briefRes?.text().catch(() => "")
-                );
-              }
+                sourceNameFallback: sourceName,
+              });
+            } catch (briefErr) {
+              console.error("generateBriefForAlert failed:", briefErr);
+              errors.push({
+                source_id: source.id,
+                error: `brief generation failed: ${(briefErr as Error).message}`,
+              });
             }
           }
 
