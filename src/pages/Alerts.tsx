@@ -6,10 +6,12 @@ import { AlertCard } from "@/components/alerts/AlertCard";
 import { AlertsEmptyState } from "@/components/alerts/AlertsEmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import { useAlertsPage, defaultFilters } from "@/hooks/use-alerts-data";
 
 const Alerts = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const {
     filters,
     setFilters,
@@ -30,7 +32,13 @@ const Alerts = () => {
     if (!alert.is_read) markRead(alert.id);
     if (alert.brief_id) {
       navigate(`/briefs/${alert.brief_id}`);
+      return;
     }
+    toast({
+      title: "Brief not ready",
+      description:
+        "The impact brief for this alert hasn't been generated yet. Try re-running the source from the Sources page.",
+    });
   };
 
   return (

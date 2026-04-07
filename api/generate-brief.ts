@@ -59,16 +59,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const { alert_id, organization_id: bodyOrgId, content, source_name } = req.body;
+    // Vercel sometimes hands req.body through unparsed when the
+    // Content-Type header survives but the body parser didn't run
+    // (e.g. internal server-to-server fetch). Parse defensively.
+    const rawBody = req.body;
+    const parsedBody =
+      typeof rawBody === "string"
+        ? (() => {
+            try {
+              return JSON.parse(rawBody);
+            } catch {
+              return {};
+            }
+          })()
+        : rawBody ?? {};
 
-    // Cron callers (skipRateLimit) may pass org_id in the body; user callers must use their own org
-    const targetOrgId = skipRateLimit ? (bodyOrgId || orgId) : orgId;
-    if (!targetOrgId) {
-      return res.status(403).json({ error: "No organization context. User has no organization." });
-    }
+    const { alert_id, organization_id: bodyOrgId, content, source_name } = parsedBody;
 
     if (!alert_id || !content) {
       return res.status(400).json({ error: "alert_id and content are required" });
+    }
+
+    // Cron callers (skipRateLimit) may pass org_id in the body; user callers
+    // must use their own org. If neither is present on a cron call, fall back
+    // to the alert row itself so we never 403 on a valid alert_id.
+    let targetOrgId: string | null = skipRateLimit ? (bodyOrgId || orgId) : orgId;
+    if (!targetOrgId && skipRateLimit) {
+      const { data: alertRow } = await adminClient
+        .from("alerts")
+        .select("organization_id")
+        .eq("id", alert_id)
+        .maybeSingle();
+      targetOrgId = alertRow?.organization_id ?? null;
+    }
+    if (!targetOrgId) {
+      console.error("generate-brief: no org context", {
+        skipRateLimit,
+        hasBodyOrgId: !!bodyOrgId,
+        bodyKeys: Object.keys(parsedBody ?? {}),
+      });
+      return res.status(403).json({ error: "No organization context." });
     }
 
     const systemPrompt = `You are a policy analyst AI assistant. Your role is to analyze policy change notifications and create clear, concise briefs for decision makers.
