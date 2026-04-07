@@ -325,10 +325,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 sourceNameFallback: sourceName,
               });
             } catch (briefErr) {
-              console.error("generateBriefForAlert failed:", briefErr);
+              const msg = (briefErr as Error).message ?? String(briefErr);
+              console.error(
+                "[monitor-sources] generateBriefForAlert failed:",
+                msg
+              );
               errors.push({
                 source_id: source.id,
-                error: `brief generation failed: ${(briefErr as Error).message}`,
+                error: `brief generation failed: ${msg}`,
               });
             }
           }

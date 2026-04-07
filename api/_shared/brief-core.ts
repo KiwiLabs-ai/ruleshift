@@ -55,8 +55,12 @@ export async function generateBriefForAlert(
     apiKey: process.env.ANTHROPIC_API_KEY,
   });
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is not set in environment");
+  }
+
   const anthropicCall = client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-5-20250929",
     max_tokens: 1500,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
@@ -73,6 +77,17 @@ export async function generateBriefForAlert(
   let response: Awaited<typeof anthropicCall>;
   try {
     response = await Promise.race([anthropicCall, timeoutPromise]);
+  } catch (anthropicErr) {
+    // Surface the full Anthropic error so it survives Vercel log truncation.
+    const err = anthropicErr as { status?: number; message?: string; error?: unknown };
+    console.error("[brief-core] Anthropic call failed", {
+      message: err?.message,
+      status: err?.status,
+      error: err?.error,
+    });
+    throw new Error(
+      `Anthropic call failed (status=${err?.status ?? "n/a"}): ${err?.message ?? String(anthropicErr)}`
+    );
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
