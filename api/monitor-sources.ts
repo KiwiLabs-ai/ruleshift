@@ -330,6 +330,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 "[monitor-sources] generateBriefForAlert failed:",
                 msg
               );
+              // Persist the error onto the source row so it survives Vercel
+              // log truncation and is visible to the user on the Sources page.
+              await adminClient
+                .from("organization_sources")
+                .update({ last_error: `brief: ${msg}`.substring(0, 500) })
+                .eq("id", source.id);
               errors.push({
                 source_id: source.id,
                 error: `brief generation failed: ${msg}`,
