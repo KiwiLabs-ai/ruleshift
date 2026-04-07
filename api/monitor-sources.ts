@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
+import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -85,22 +86,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized" });
   }
+
+  const SOURCE_SELECT =
+    "id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, consecutive_errors, policy_sources(url)";
 
   try {
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { org_id: requestOrgId } = req.body || {};
+    const isCronCall = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+
+    // User mode: verify the JWT and that the user belongs to the target org.
+    let authenticatedOrgId: string | null = null;
+    if (!isCronCall) {
+      const token = authHeader.replace("Bearer ", "");
+      const userClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const { data: profile, error: profileError } = await userClient
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", userData.user.id)
+        .single();
+      if (profileError || !profile?.organization_id) {
+        return res.status(403).json({ error: "No organization found." });
+      }
+      authenticatedOrgId = profile.organization_id;
+
+      // Rate limit manual checks: 30/hour per org.
+      const rl = await checkRateLimit(authenticatedOrgId, "monitor-sources", 30, 3600);
+      if (!rl.allowed) {
+        const rlInfo = rateLimitJson(rl.reset_at);
+        return res.setHeader("Retry-After", rlInfo.retryAfter).status(429).json(rlInfo.body);
+      }
+    }
+
+    const { org_id: bodyOrgId, source_id: requestSourceId } = (req.body || {}) as {
+      org_id?: string;
+      source_id?: string;
+    };
+
+    // In user mode, always scope to the authenticated org (ignore any spoofed org_id in body).
+    const requestOrgId = isCronCall ? bodyOrgId : authenticatedOrgId;
     const batch_size = Math.min(Math.max(parseInt(String(req.body?.batch_size ?? 20)), 1), 100);
 
-    let sourcesToProcess = [];
+    let sourcesToProcess: any[] = [];
 
-    if (requestOrgId) {
+    if (requestSourceId) {
+      // Single-source mode (typically the "Check Now" button).
+      const query = adminClient
+        .from("organization_sources")
+        .select(SOURCE_SELECT)
+        .eq("id", requestSourceId)
+        .eq("status", "active");
+      if (requestOrgId) query.eq("organization_id", requestOrgId);
+      const { data: source, error } = await query.maybeSingle();
+
+      if (error) throw error;
+      if (!source) {
+        return res.status(404).json({ error: "Source not found" });
+      }
+      sourcesToProcess = [source];
+    } else if (requestOrgId) {
       const { data: sources, error } = await adminClient
         .from("organization_sources")
-        .select("id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, policy_sources(url)")
+        .select(SOURCE_SELECT)
         .eq("organization_id", requestOrgId)
         .eq("status", "active")
         .order("last_checked_at", { ascending: true, nullsFirst: true })
@@ -117,12 +173,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const orgIds = subscriptions?.map((s: any) => s.organization_id) ?? [];
 
       if (orgIds.length === 0) {
-        return res.status(200).json({ processed: 0, message: "No active subscriptions" });
+        return res.status(200).json({ processed: 0, changes_detected: 0, message: "No active subscriptions" });
       }
 
       const { data: sources, error } = await adminClient
         .from("organization_sources")
-        .select("id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, policy_sources(url)")
+        .select(SOURCE_SELECT)
         .in("organization_id", orgIds)
         .eq("status", "active")
         .order("last_checked_at", { ascending: true, nullsFirst: true })
@@ -133,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let processedCount = 0;
+    let changesDetected = 0;
     const errors: any[] = [];
 
     for (const source of sourcesToProcess) {
@@ -214,6 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq("id", source.id);
 
         if (contentChanged) {
+          changesDetected++;
           await adminClient
             .from("organization_sources")
             .update({
@@ -276,6 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       processed: processedCount,
+      changes_detected: changesDetected,
       total: sourcesToProcess.length,
       errors: errors.length > 0 ? errors : undefined,
     });
