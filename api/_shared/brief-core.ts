@@ -90,7 +90,7 @@ Rules:
 export interface SupplementaryDoc {
   url: string;
   text: string;
-  type: "html" | "pdf-skipped" | "fetch-failed";
+  type: "html" | "pdf" | "pdf-skipped" | "fetch-failed";
 }
 
 export interface GenerateBriefParams {
@@ -117,6 +117,98 @@ export interface GenerateBriefParams {
 export interface GenerateBriefResult {
   briefId: string;
   briefLength: number;
+}
+
+// === P5: substantive-change classifier ===
+
+const CLASSIFIER_TIMEOUT_MS = 20000;
+const CLASSIFIER_SYSTEM_PROMPT = `You are a fast classifier for a regulatory change-monitoring product.
+
+You will receive a unified diff between two snapshots of a policy or regulatory webpage. Your job is to decide whether the diff represents a SUBSTANTIVE policy change worth alerting a compliance team about, or a COSMETIC change that should be ignored.
+
+Substantive examples:
+- New, removed, or amended rules, requirements, deadlines, definitions
+- New policy guidance or bulletins
+- New Federal Register notices linked
+- Effective dates, comment periods, compliance deadlines
+
+Cosmetic examples (NOT substantive):
+- Page "last updated" timestamps
+- Build version strings, JS/CSS bundle hashes
+- Navigation, header, breadcrumb, footer reshuffles
+- Counter / view-count widgets
+- A/B test variants of layout
+- HTML markup or class name changes that don't change wording
+
+Respond with ONLY a single line of valid JSON:
+{"substantive": true|false, "reason": "<short reason in 15 words or less>"}
+
+No prose, no markdown, no code fences. JSON only.`;
+
+export interface ClassificationResult {
+  substantive: boolean;
+  reason: string;
+}
+
+/**
+ * Run a fast Haiku classification on a diff to decide whether the change is
+ * substantive enough to alert on. Falls open (returns substantive=true) on
+ * any error so we never accidentally suppress real changes.
+ */
+export async function classifyChangeSubstantive(
+  previousContent: string,
+  currentContent: string
+): Promise<ClassificationResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { substantive: true, reason: "no api key — failing open" };
+  }
+
+  const diff = buildDiffPayload(previousContent, currentContent);
+  if (!diff) {
+    return { substantive: false, reason: "no meaningful diff lines" };
+  }
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () => reject(new Error("Classifier timeout")),
+      CLASSIFIER_TIMEOUT_MS
+    );
+  });
+
+  try {
+    const call = client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      system: CLASSIFIER_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: `Diff:\n\n${diff}` }],
+    });
+    const response = await Promise.race([call, timeoutPromise]);
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    // Extract the first {...} block in case the model wrapped it.
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) {
+      console.warn("[classifier] no JSON in response, failing open:", text.substring(0, 200));
+      return { substantive: true, reason: "classifier returned non-json — failing open" };
+    }
+
+    const parsed = JSON.parse(match[0]);
+    if (typeof parsed.substantive !== "boolean") {
+      return { substantive: true, reason: "classifier returned invalid shape — failing open" };
+    }
+    return {
+      substantive: parsed.substantive,
+      reason: typeof parsed.reason === "string" ? parsed.reason : "(no reason)",
+    };
+  } catch (err) {
+    console.warn("[classifier] failed, failing open:", (err as Error).message);
+    return { substantive: true, reason: `classifier error — failing open: ${(err as Error).message}` };
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 }
 
 /**
@@ -200,8 +292,11 @@ export async function generateBriefForAlert(
   if (supplementaryDocs && supplementaryDocs.length > 0) {
     const renderedDocs = supplementaryDocs
       .map((doc) => {
+        if (doc.type === "pdf") {
+          return `### Linked PDF: ${doc.url}\n${doc.text || "[empty]"}`;
+        }
         if (doc.type === "pdf-skipped") {
-          return `### Linked PDF (not parsed): ${doc.url}\n[PDF content not yet supported — note its existence in the brief if it appears to contain a final/proposed rule.]`;
+          return `### Linked PDF (could not parse): ${doc.url}\n[PDF was either too large, password-protected, or unreadable. Mention its existence in the brief if relevant.]`;
         }
         if (doc.type === "fetch-failed") {
           return `### Linked document (fetch failed): ${doc.url}\n[Could not retrieve.]`;

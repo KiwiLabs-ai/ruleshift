@@ -2,7 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
-import { generateBriefForAlert } from "./_shared/brief-core.js";
+import { generateBriefForAlert, classifyChangeSubstantive } from "./_shared/brief-core.js";
+import { PDFParse } from "pdf-parse";
 
 // Single-source user calls await generate-brief, which can take up to ~60s
 // for the Anthropic round-trip. Give this function enough budget to cover it.
@@ -237,7 +238,58 @@ interface PolicyLink {
 export interface SupplementaryDocSummary {
   url: string;
   text: string;
-  type: "html" | "pdf-skipped" | "fetch-failed";
+  type: "html" | "pdf" | "pdf-skipped" | "fetch-failed";
+}
+
+const MAX_PDF_BYTES = 8 * 1024 * 1024; // 8 MB cap to avoid blowing up memory
+
+async function parsePdfFromUrl(url: string): Promise<string | null> {
+  let parser: PDFParse | undefined;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, {
+      headers: { "User-Agent": "RuleShift-Monitor/1.0" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+
+    const contentLength = parseInt(res.headers.get("content-length") ?? "0", 10);
+    if (contentLength > MAX_PDF_BYTES) {
+      console.warn(`[pdf] ${url} exceeds size cap (${contentLength} bytes)`);
+      return null;
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_PDF_BYTES) {
+      console.warn(`[pdf] ${url} body exceeds size cap`);
+      return null;
+    }
+
+    parser = new PDFParse({ data: new Uint8Array(arrayBuffer) });
+    const result = await parser.getText();
+    const raw = result?.text ?? "";
+    // Normalise whitespace the same way stripHtmlTags does so PDF text and
+    // HTML text feel the same to the model and to the diff path.
+    return raw
+      .split("\n")
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => line.length > 0)
+      .join("\n");
+  } catch (err) {
+    console.warn(`[pdf] parse failed for ${url}:`, (err as Error).message);
+    return null;
+  } finally {
+    if (parser) {
+      try {
+        await parser.destroy();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 // Find links inside the main content region that look like they point to
@@ -316,9 +368,15 @@ function findPolicyLinks(mainHtml: string, baseUrl: string, max: number): Policy
 
 async function fetchOneSupplementaryDoc(link: PolicyLink): Promise<SupplementaryDocSummary> {
   if (link.isPdf) {
-    // P4 will parse PDFs; for now we acknowledge them so the AI knows there's
-    // an unanalyzed regulatory PDF available at this URL.
-    return { url: link.url, text: "", type: "pdf-skipped" };
+    const text = await parsePdfFromUrl(link.url);
+    if (text === null) {
+      return { url: link.url, text: "", type: "pdf-skipped" };
+    }
+    return {
+      url: link.url,
+      text: text.substring(0, 10000),
+      type: "pdf",
+    };
   }
 
   try {
@@ -589,6 +647,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq("id", source.id);
 
         if (contentChanged) {
+          // P5: when there is a previous snapshot to compare against, ask the
+          // fast classifier whether this diff is substantive. If not, save
+          // the snapshot (which we already did above) so we don't keep
+          // re-detecting the same cosmetic delta, but skip the alert and
+          // brief generation. First-seen content (no previous snapshot) is
+          // always treated as substantive.
+          let substantive = true;
+          let classifierReason = "first-seen content";
+          if (previousContent) {
+            const verdict = await classifyChangeSubstantive(previousContent, content);
+            substantive = verdict.substantive;
+            classifierReason = verdict.reason;
+          }
+
+          if (!substantive) {
+            console.info(
+              `[monitor-sources] suppressed cosmetic change for source ${source.id}: ${classifierReason}`
+            );
+            await adminClient.from("activity_events").insert({
+              organization_id: sourceOrgId,
+              event_type: "cosmetic_change_suppressed",
+              description: `Cosmetic change ignored: ${classifierReason}`,
+            });
+            processedCount++;
+            continue;
+          }
+
           changesDetected++;
           await adminClient
             .from("organization_sources")
