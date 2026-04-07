@@ -106,26 +106,111 @@ function stripHtmlTags(html: string): string {
   );
 }
 
-function extractBySelector(html: string, selector: string | null): string {
-  if (!selector) return stripHtmlTags(html);
+// Find the substring of `html` enclosed by the first matching tag, by trying
+// the supplied tag patterns (regex) in order. Returns null if none match.
+// Handles a *single level* of nested tags of the same name (good enough for
+// the typical <main>...<main>...</main>...</main> case via greedy matching
+// when `greedy` is true).
+function extractTagBlock(html: string, tagName: string): string | null {
+  const re = new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i");
+  const match = html.match(re);
+  return match ? match[1] : null;
+}
 
-  try {
-    const startIndex = html.indexOf(`id="${selector}"`);
-    if (startIndex === -1) {
-      const classIndex = html.indexOf(`class="${selector}"`);
-      if (classIndex === -1) {
-        return stripHtmlTags(html);
+function extractByIdOrClass(html: string, attr: "id" | "class", value: string): string | null {
+  // Match the opening tag containing id="value" or class="...value..."
+  // and pull the inner HTML up to the next matching close tag.
+  // Doesn't handle deeply nested same-tag children, but is fine for the
+  // single content region most regulatory pages use.
+  const tagMatch = html.match(
+    new RegExp(`<(\\w+)\\b[^>]*\\b${attr}\\s*=\\s*"[^"]*\\b${value}\\b[^"]*"[^>]*>`, "i")
+  );
+  if (!tagMatch || tagMatch.index === undefined) return null;
+
+  const tagName = tagMatch[1];
+  const startIdx = tagMatch.index + tagMatch[0].length;
+
+  // Walk forward counting opening and closing tags of the same name to find
+  // the matching close.
+  const openRe = new RegExp(`<${tagName}\\b[^>]*>`, "gi");
+  const closeRe = new RegExp(`<\\/${tagName}>`, "gi");
+  openRe.lastIndex = startIdx;
+  closeRe.lastIndex = startIdx;
+
+  let depth = 1;
+  let cursor = startIdx;
+  while (depth > 0 && cursor < html.length) {
+    openRe.lastIndex = cursor;
+    closeRe.lastIndex = cursor;
+    const nextOpen = openRe.exec(html);
+    const nextClose = closeRe.exec(html);
+    if (!nextClose) return null;
+    if (nextOpen && nextOpen.index < nextClose.index) {
+      depth++;
+      cursor = nextOpen.index + nextOpen[0].length;
+    } else {
+      depth--;
+      cursor = nextClose.index + nextClose[0].length;
+      if (depth === 0) {
+        return html.substring(startIdx, nextClose.index);
       }
-      const contentStart = html.indexOf(">", classIndex);
-      const contentEnd = html.indexOf("</", contentStart);
-      return stripHtmlTags(html.substring(contentStart + 1, contentEnd));
     }
-    const contentStart = html.indexOf(">", startIndex);
-    const contentEnd = html.indexOf("</", contentStart);
-    return stripHtmlTags(html.substring(contentStart + 1, contentEnd));
-  } catch {
-    return stripHtmlTags(html);
   }
+  return null;
+}
+
+// Try to find the substantive content region of an HTML page. Order of
+// preference:
+//   1. <main>
+//   2. <article>
+//   3. id="main-content" / "main_content" / "content" / "main"
+//   4. class="main-content" / "content" / "article" / "post" / "entry-content"
+//   5. <body> as a last resort
+function findMainContent(html: string): string {
+  const tagCandidates = ["main", "article"];
+  for (const tag of tagCandidates) {
+    const block = extractTagBlock(html, tag);
+    if (block && block.length > 200) return block;
+  }
+
+  const idCandidates = ["main-content", "main_content", "content", "main", "primary"];
+  for (const id of idCandidates) {
+    const block = extractByIdOrClass(html, "id", id);
+    if (block && block.length > 200) return block;
+  }
+
+  const classCandidates = [
+    "main-content",
+    "content",
+    "article",
+    "post",
+    "entry-content",
+    "page-content",
+    "field--name-body",
+  ];
+  for (const cls of classCandidates) {
+    const block = extractByIdOrClass(html, "class", cls);
+    if (block && block.length > 200) return block;
+  }
+
+  const body = extractTagBlock(html, "body");
+  return body ?? html;
+}
+
+function extractBySelector(html: string, selector: string | null): string {
+  // If the user supplied a custom selector, honor it first; otherwise fall
+  // through to the smart main-content finder.
+  if (selector) {
+    try {
+      const byId = extractByIdOrClass(html, "id", selector);
+      if (byId) return stripHtmlTags(byId);
+      const byClass = extractByIdOrClass(html, "class", selector);
+      if (byClass) return stripHtmlTags(byClass);
+    } catch {
+      // fall through
+    }
+  }
+  return stripHtmlTags(findMainContent(html));
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -304,7 +389,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { error: snapshotErr } = await adminClient.from("page_snapshots").insert({
           org_source_id: source.id,
           content_hash: contentHash,
-          text_content: content.substring(0, 10000),
+          text_content: content.substring(0, 50000),
           fetched_at: new Date().toISOString(),
         });
         if (snapshotErr) {
@@ -362,7 +447,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 adminClient,
                 alertId: alert.id,
                 organizationId: sourceOrgId,
-                content: content.substring(0, 2000),
+                content: content.substring(0, 20000),
                 sourceNameFallback: sourceName,
               });
             } catch (briefErr) {
