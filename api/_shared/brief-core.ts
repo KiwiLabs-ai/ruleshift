@@ -87,6 +87,12 @@ Rules:
 - Do not use bold (**...**) inside section bodies.
 - Keep the entire brief under 500 words.`;
 
+export interface SupplementaryDoc {
+  url: string;
+  text: string;
+  type: "html" | "pdf-skipped" | "fetch-failed";
+}
+
 export interface GenerateBriefParams {
   adminClient: SupabaseClient;
   alertId: string;
@@ -98,6 +104,13 @@ export interface GenerateBriefParams {
    * content alone — so the AI focuses on what *changed*, not what exists.
    */
   previousContent?: string;
+  /**
+   * Optional related documents discovered by following links from the main
+   * page (Federal Register notices, linked sub-pages, PDF references). Used
+   * to enrich the AI prompt with regulatory context the landing page only
+   * pointed to.
+   */
+  supplementaryDocs?: SupplementaryDoc[];
   sourceNameFallback?: string;
 }
 
@@ -147,7 +160,7 @@ function buildDiffPayload(previous: string, current: string): string | null {
 export async function generateBriefForAlert(
   params: GenerateBriefParams
 ): Promise<GenerateBriefResult> {
-  const { adminClient, alertId, organizationId, content, previousContent, sourceNameFallback } = params;
+  const { adminClient, alertId, organizationId, content, previousContent, supplementaryDocs, sourceNameFallback } = params;
 
   // Look up the alert so we can copy title/source_name onto the brief row.
   const { data: alert, error: alertLookupErr } = await adminClient
@@ -179,6 +192,25 @@ export async function generateBriefForAlert(
   } else {
     systemPrompt = FIRST_SEEN_SYSTEM_PROMPT;
     userMessage = `Source: "${alert.source_name}"\n\nThis is the first time we are seeing content from this source (no previous snapshot to diff against). Treat the following as the initial baseline and summarize the substantive policy content:\n\n${content}`;
+  }
+
+  // P3: append linked-document context. The landing page often only links to
+  // the actual policy text — these are the highest-signal documents we could
+  // fetch one level out from the source.
+  if (supplementaryDocs && supplementaryDocs.length > 0) {
+    const renderedDocs = supplementaryDocs
+      .map((doc) => {
+        if (doc.type === "pdf-skipped") {
+          return `### Linked PDF (not parsed): ${doc.url}\n[PDF content not yet supported — note its existence in the brief if it appears to contain a final/proposed rule.]`;
+        }
+        if (doc.type === "fetch-failed") {
+          return `### Linked document (fetch failed): ${doc.url}\n[Could not retrieve.]`;
+        }
+        return `### Linked document: ${doc.url}\n${doc.text || "[empty]"}`;
+      })
+      .join("\n\n");
+
+    userMessage += `\n\n---\nThe page above linked to the following related documents. Treat them as additional context to the main source — they may contain the actual rule text that the landing page only references.\n\n${renderedDocs}`;
   }
 
   const client = new Anthropic({

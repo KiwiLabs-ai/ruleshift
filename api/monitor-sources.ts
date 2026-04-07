@@ -207,6 +207,178 @@ function findMainContent(html: string): string {
   return body ?? html;
 }
 
+// === P3: link following ===
+
+const POLICY_KEYWORDS = [
+  "final rule",
+  "proposed rule",
+  "rulemaking",
+  "amendment",
+  "amendments",
+  "notice",
+  "notices",
+  "guidance",
+  "press release",
+  "announcement",
+  "regulation",
+  "compliance",
+  "bulletin",
+  "interpretive",
+];
+
+const RECENT_YEAR_RE = /20[2-9]\d/;
+
+interface PolicyLink {
+  url: string;
+  isPdf: boolean;
+  score: number;
+}
+
+export interface SupplementaryDocSummary {
+  url: string;
+  text: string;
+  type: "html" | "pdf-skipped" | "fetch-failed";
+}
+
+// Find links inside the main content region that look like they point to
+// substantive policy documents. Returns the top `max` candidates by score.
+function findPolicyLinks(mainHtml: string, baseUrl: string, max: number): PolicyLink[] {
+  let baseHost: string;
+  let basePathname: string;
+  try {
+    const base = new URL(baseUrl);
+    baseHost = base.host;
+    basePathname = base.pathname;
+  } catch {
+    return [];
+  }
+
+  const candidates: PolicyLink[] = [];
+  const seen = new Set<string>();
+  const linkRe = /<a\s+[^>]*href\s*=\s*"([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+  let match: RegExpExecArray | null;
+  while ((match = linkRe.exec(mainHtml)) !== null) {
+    const rawHref = match[1].trim();
+    if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:")) {
+      continue;
+    }
+
+    let absolute: URL;
+    try {
+      absolute = new URL(rawHref, baseUrl);
+    } catch {
+      continue;
+    }
+
+    if (absolute.protocol !== "https:" && absolute.protocol !== "http:") continue;
+
+    const absoluteStr = absolute.toString().split("#")[0];
+    if (seen.has(absoluteStr)) continue;
+    seen.add(absoluteStr);
+
+    // Skip the page linking back to itself
+    if (absolute.host === baseHost && absolute.pathname === basePathname) continue;
+
+    // Allowlist: same host, or known regulatory aggregators
+    const sameHost = absolute.host === baseHost;
+    const isFedRegister = absolute.host.endsWith("federalregister.gov");
+    const isRegsGov = absolute.host.endsWith("regulations.gov");
+    if (!sameHost && !isFedRegister && !isRegsGov) continue;
+
+    // Defense in depth — reuse the SSRF check
+    if (!validateUrl(absoluteStr)) continue;
+
+    const anchorText = decodeEntities(match[2].replace(/<[^>]*>/g, " "))
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    const haystack = (anchorText + " " + absoluteStr).toLowerCase();
+
+    let score = 0;
+    for (const kw of POLICY_KEYWORDS) {
+      if (haystack.includes(kw)) score += 2;
+    }
+    if (RECENT_YEAR_RE.test(haystack)) score += 1;
+    if (isFedRegister) score += 4;
+    if (isRegsGov) score += 3;
+    const isPdf = absoluteStr.toLowerCase().endsWith(".pdf");
+    if (isPdf) score += 2;
+
+    if (score === 0) continue;
+
+    candidates.push({ url: absoluteStr, isPdf, score });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, max);
+}
+
+async function fetchOneSupplementaryDoc(link: PolicyLink): Promise<SupplementaryDocSummary> {
+  if (link.isPdf) {
+    // P4 will parse PDFs; for now we acknowledge them so the AI knows there's
+    // an unanalyzed regulatory PDF available at this URL.
+    return { url: link.url, text: "", type: "pdf-skipped" };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(link.url, {
+      headers: { "User-Agent": "RuleShift-Monitor/1.0" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      return { url: link.url, text: "", type: "fetch-failed" };
+    }
+
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+      return { url: link.url, text: "", type: "fetch-failed" };
+    }
+
+    const html = await res.text();
+    const text = stripHtmlTags(findMainContent(html)).substring(0, 10000);
+    return { url: link.url, text, type: "html" };
+  } catch (err) {
+    console.warn(`[link-follow] failed for ${link.url}:`, (err as Error).message);
+    return { url: link.url, text: "", type: "fetch-failed" };
+  }
+}
+
+// Fetch all supplementary documents in parallel under a 25s wall-clock budget.
+// Anything that doesn't finish in time is reported as fetch-failed.
+async function fetchSupplementaryDocs(links: PolicyLink[]): Promise<SupplementaryDocSummary[]> {
+  if (links.length === 0) return [];
+
+  const overall = new Promise<SupplementaryDocSummary[]>((resolve) => {
+    const results: SupplementaryDocSummary[] = [];
+    let settled = 0;
+    const timer = setTimeout(() => resolve(results), 25000);
+
+    links.forEach((link) => {
+      fetchOneSupplementaryDoc(link)
+        .then((doc) => {
+          results.push(doc);
+        })
+        .catch(() => {
+          results.push({ url: link.url, text: "", type: "fetch-failed" });
+        })
+        .finally(() => {
+          settled++;
+          if (settled === links.length) {
+            clearTimeout(timer);
+            resolve(results);
+          }
+        });
+    });
+  });
+
+  return overall;
+}
+
 function extractBySelector(html: string, selector: string | null): string {
   // If the user supplied a custom selector, honor it first; otherwise fall
   // through to the smart main-content finder.
@@ -446,6 +618,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (!alertErr && alert?.id) {
+            // P3: try to follow links from the main content region to fetch
+            // related policy documents (Federal Register notices, linked
+            // sub-pages). PDFs are noted but not parsed (P4). The fetch is
+            // best-effort and capped to a 25s budget — failures don't block
+            // the brief.
+            let supplementaryDocs: SupplementaryDocSummary[] = [];
+            try {
+              const mainHtml = findMainContent(html);
+              const links = findPolicyLinks(mainHtml, url, 3);
+              if (links.length > 0) {
+                supplementaryDocs = await fetchSupplementaryDocs(links);
+              }
+            } catch (linkErr) {
+              console.warn("[link-follow] discovery failed:", (linkErr as Error).message);
+            }
+
             // Call the brief generator in-process. We used to POST to
             // /api/generate-brief here, but Vercel's internal fetch fan-out
             // dropped req.body fields intermittently, leaving alerts with no
@@ -460,6 +648,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 organizationId: sourceOrgId,
                 content: content.substring(0, 20000),
                 previousContent: previousContent ?? undefined,
+                supplementaryDocs,
                 sourceNameFallback: sourceName,
               });
             } catch (briefErr) {
