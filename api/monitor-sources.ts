@@ -83,27 +83,37 @@ function stripBlockElement(html: string, tagName: string): string {
   return html.replace(re, " ");
 }
 
+// Strip HTML to plain text while preserving paragraph structure so the result
+// can be diffed line-by-line. Block-level tags become newlines; inline tags
+// become spaces.
 function stripHtmlTags(html: string): string {
-  return (
-    decodeEntities(
+  const cleaned = stripBlockElement(
+    stripBlockElement(
       stripBlockElement(
-        stripBlockElement(
-          stripBlockElement(
-            // strip HTML comments first
-            html.replace(/<!--[\s\S]*?-->/g, " "),
-            "script"
-          ),
-          "style"
-        ),
-        "noscript"
-      )
-        // remove all remaining tags
-        .replace(/<[^>]*>/g, " ")
-    )
-      // collapse whitespace
-      .replace(/\s+/g, " ")
-      .trim()
+        // strip HTML comments first
+        html.replace(/<!--[\s\S]*?-->/g, " "),
+        "script"
+      ),
+      "style"
+    ),
+    "noscript"
   );
+
+  // Insert newline markers before/after block-level tags so paragraph
+  // structure survives the tag strip.
+  const withBreaks = cleaned
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/?(p|div|li|tr|h[1-6]|section|article|header|footer|nav|main|ul|ol|table|thead|tbody)\b[^>]*>/gi, "\n");
+
+  const text = decodeEntities(withBreaks.replace(/<[^>]*>/g, " "));
+
+  // Per-line cleanup: collapse internal whitespace, trim, drop empty lines.
+  // Then collapse runs of >2 blank lines so the result stays compact.
+  return text
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 // Find the substring of `html` enclosed by the first matching tag, by trying
@@ -375,15 +385,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const content = extractBySelector(html, source.custom_selector || null);
         const contentHash = sha256(content);
 
-        const { data: lastHash } = await adminClient
+        const { data: previousSnapshot } = await adminClient
           .from("page_snapshots")
-          .select("content_hash")
+          .select("content_hash, text_content")
           .eq("org_source_id", source.id)
           .order("fetched_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        const previousHash = lastHash?.content_hash;
+        const previousHash = previousSnapshot?.content_hash;
+        const previousContent = (previousSnapshot?.text_content as string | null) ?? null;
         const contentChanged = !previousHash || previousHash !== contentHash;
 
         const { error: snapshotErr } = await adminClient.from("page_snapshots").insert({
@@ -448,6 +459,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 alertId: alert.id,
                 organizationId: sourceOrgId,
                 content: content.substring(0, 20000),
+                previousContent: previousContent ?? undefined,
                 sourceNameFallback: sourceName,
               });
             } catch (briefErr) {
