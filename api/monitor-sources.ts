@@ -96,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const SOURCE_SELECT =
-    "id, organization_id, source_id, is_custom, custom_url, custom_selector, check_frequency, last_checked_at, consecutive_errors, policy_sources(url)";
+    "id, organization_id, source_id, is_custom, custom_url, custom_name, custom_selector, check_frequency, last_checked_at, consecutive_errors, policy_sources(url, name)";
 
   try {
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -249,22 +249,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const contentHash = sha256(content);
 
         const { data: lastHash } = await adminClient
-          .from("source_content_history")
+          .from("page_snapshots")
           .select("content_hash")
-          .eq("organization_source_id", source.id)
-          .order("checked_at", { ascending: false })
+          .eq("org_source_id", source.id)
+          .order("fetched_at", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         const previousHash = lastHash?.content_hash;
         const contentChanged = !previousHash || previousHash !== contentHash;
 
-        await adminClient.from("source_content_history").insert({
-          organization_source_id: source.id,
+        const { error: snapshotErr } = await adminClient.from("page_snapshots").insert({
+          org_source_id: source.id,
           content_hash: contentHash,
-          content_preview: content.substring(0, 500),
-          checked_at: new Date().toISOString(),
+          text_content: content.substring(0, 10000),
+          fetched_at: new Date().toISOString(),
         });
+        if (snapshotErr) {
+          console.error("page_snapshots insert failed:", snapshotErr);
+        }
 
         await adminClient
           .from("organization_sources")
@@ -285,22 +288,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .eq("id", source.id);
 
           const sourceName = source.is_custom
-            ? `Custom: ${source.custom_url}`
-            : source.policy_sources?.url || "Unknown";
+            ? source.custom_name || source.custom_url || "Custom source"
+            : source.policy_sources?.name || source.policy_sources?.url || "Unknown source";
 
           const { data: alert, error: alertErr } = await adminClient
             .from("alerts")
             .insert({
               organization_id: sourceOrgId,
-              organization_source_id: source.id,
-              status: "new",
+              org_source_id: source.id,
               title: `Change detected: ${sourceName}`,
-              description: `Content changes detected at ${sourceName}`,
-              content_preview: content.substring(0, 500),
-              content_hash: contentHash,
+              source_name: sourceName,
+              is_read: false,
             })
             .select("id")
             .single();
+
+          if (alertErr) {
+            console.error("alerts insert failed:", alertErr);
+          }
 
           if (!alertErr && alert?.id) {
             // In single-source (user "Check Now") mode, await the brief call so

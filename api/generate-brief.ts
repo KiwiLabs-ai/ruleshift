@@ -127,22 +127,46 @@ Keep your response focused, actionable, and no longer than 500 words.`;
       throw new Error("No brief text generated");
     }
 
+    // Look up the alert so we can copy title/source_name onto the brief row.
+    const { data: alert, error: alertLookupErr } = await adminClient
+      .from("alerts")
+      .select("id, title, source_name, org_source_id")
+      .eq("id", alert_id)
+      .single();
+
+    if (alertLookupErr || !alert) {
+      throw alertLookupErr || new Error("Alert not found");
+    }
+
+    // Build a short summary (first paragraph or first 300 chars).
+    const firstParagraph = briefText.split(/\n\s*\n/)[0] ?? briefText;
+    const summary = firstParagraph.length > 300
+      ? firstParagraph.substring(0, 297) + "..."
+      : firstParagraph;
+
+    const { data: brief, error: briefInsertErr } = await adminClient
+      .from("briefs")
+      .insert({
+        organization_id: targetOrgId,
+        alert_id,
+        title: alert.title,
+        source_name: alert.source_name ?? source_name ?? "Unknown source",
+        summary,
+        content: briefText,
+      })
+      .select("id")
+      .single();
+
+    if (briefInsertErr || !brief?.id) {
+      throw briefInsertErr || new Error("Failed to insert brief");
+    }
+
     const { error: updateAlertErr } = await adminClient
       .from("alerts")
-      .update({
-        status: "briefed",
-        brief: briefText,
-        briefed_at: new Date().toISOString(),
-      })
+      .update({ brief_id: brief.id })
       .eq("id", alert_id);
 
     if (updateAlertErr) throw updateAlertErr;
-
-    const { data: alert } = await adminClient
-      .from("alerts")
-      .select("organization_source_id, title")
-      .eq("id", alert_id)
-      .single();
 
     if (alert) {
       await adminClient.from("activity_events").insert({
