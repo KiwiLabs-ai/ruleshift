@@ -1,10 +1,19 @@
+// Fallback Stripe IDs used when env vars are not set (e.g. in local dev).
+// In production these should be supplied via Vite env vars (VITE_STRIPE_*).
+const FALLBACK_PRICE_BASIC = "price_1T7P6hDOdwEZVcQrYURqZIBP";
+const FALLBACK_PRICE_PROFESSIONAL = "price_1T7P7kDOdwEZVcQrXoPpWJTB";
+const FALLBACK_PRICE_ENTERPRISE = "price_1T7P88DOdwEZVcQrgm8GYbw1";
+const FALLBACK_PRODUCT_BASIC = "prod_U5aHbRwGTN7xrH";
+const FALLBACK_PRODUCT_PROFESSIONAL = "prod_U5aIsM1EfFuyrj";
+const FALLBACK_PRODUCT_ENTERPRISE = "prod_U5aIAlewBWuFxK";
+
 export const STRIPE_TIERS = {
   basic: {
     name: "Basic",
     price: "$49",
     priceAmount: 49,
-    priceId: "price_1T7P6hDOdwEZVcQrYURqZIBP",
-    productId: "prod_U5aHbRwGTN7xrH",
+    priceId: import.meta.env.VITE_STRIPE_PRICE_BASIC || FALLBACK_PRICE_BASIC,
+    productId: import.meta.env.VITE_STRIPE_PRODUCT_BASIC || FALLBACK_PRODUCT_BASIC,
     description: "For small teams getting started with compliance monitoring.",
     features: [
       "Up to 10 policy sources",
@@ -20,8 +29,8 @@ export const STRIPE_TIERS = {
     name: "Professional",
     price: "$99",
     priceAmount: 99,
-    priceId: "price_1T7P7kDOdwEZVcQrXoPpWJTB",
-    productId: "prod_U5aIsM1EfFuyrj",
+    priceId: import.meta.env.VITE_STRIPE_PRICE_PROFESSIONAL || FALLBACK_PRICE_PROFESSIONAL,
+    productId: import.meta.env.VITE_STRIPE_PRODUCT_PROFESSIONAL || FALLBACK_PRODUCT_PROFESSIONAL,
     description: "For growing businesses that need daily coverage.",
     features: [
       "Up to 25 policy sources",
@@ -37,8 +46,8 @@ export const STRIPE_TIERS = {
     name: "Enterprise",
     price: "$199",
     priceAmount: 199,
-    priceId: "price_1T7P88DOdwEZVcQrgm8GYbw1",
-    productId: "prod_U5aIAlewBWuFxK",
+    priceId: import.meta.env.VITE_STRIPE_PRICE_ENTERPRISE || FALLBACK_PRICE_ENTERPRISE,
+    productId: import.meta.env.VITE_STRIPE_PRODUCT_ENTERPRISE || FALLBACK_PRODUCT_ENTERPRISE,
     description: "For organizations requiring real-time coverage and analyst review.",
     features: [
       "Unlimited policy sources",

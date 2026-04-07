@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2 } from "lucide-react";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,6 +192,7 @@ const BriefDetail = () => {
 
   return (
     <DashboardLayout>
+      <PageErrorBoundary pageName="BriefDetail">
       <div className="max-w-3xl mx-auto space-y-6">
         <Button variant="ghost" size="sm" onClick={() => navigate("/alerts")} className="gap-1">
           <ArrowLeft className="h-4 w-4" /> Back to Alerts
@@ -375,6 +377,7 @@ const BriefDetail = () => {
           )}
         </div>
       </div>
+      </PageErrorBoundary>
     </DashboardLayout>
   );
 };

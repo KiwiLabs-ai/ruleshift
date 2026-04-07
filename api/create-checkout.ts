@@ -1,6 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
+
+function getClientIp(req: VercelRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
+  if (Array.isArray(forwarded) && forwarded.length > 0) return forwarded[0];
+  return req.socket?.remoteAddress || "unknown";
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
@@ -26,6 +34,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
+
+    const rlIdentifier = user.id || `ip:${getClientIp(req)}`;
+    const rl = await checkRateLimit(rlIdentifier, "create-checkout", 10, 3600);
+    if (!rl.allowed) {
+      const rlInfo = rateLimitJson(rl.reset_at);
+      return res.setHeader("Retry-After", rlInfo.retryAfter).status(429).json(rlInfo.body);
+    }
 
     const { priceId } = req.body;
     if (!priceId) throw new Error("priceId is required");

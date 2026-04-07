@@ -84,7 +84,8 @@ Keep your response focused, actionable, and no longer than 500 words.`;
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
-    const response = await client.messages.create({
+    const ANTHROPIC_TIMEOUT_MS = 60000;
+    const anthropicCall = client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1500,
       system: systemPrompt,
@@ -95,6 +96,27 @@ Keep your response focused, actionable, and no longer than 500 words.`;
         },
       ],
     });
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error("Anthropic API timeout")),
+        ANTHROPIC_TIMEOUT_MS
+      );
+    });
+
+    let response: Awaited<typeof anthropicCall>;
+    try {
+      response = await Promise.race([anthropicCall, timeoutPromise]);
+    } catch (timeoutErr) {
+      if ((timeoutErr as Error).message === "Anthropic API timeout") {
+        console.error("generate-brief: Anthropic API timed out after", ANTHROPIC_TIMEOUT_MS, "ms");
+        return res.status(504).json({ error: "Brief generation timed out. Please try again." });
+      }
+      throw timeoutErr;
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
 
     const briefText = response.content[0].type === "text" ? response.content[0].text : "";
 

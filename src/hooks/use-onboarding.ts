@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
+
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 /**
  * Hook to fetch the user's profile and redirect based on onboarding status.
@@ -11,7 +14,7 @@ import { Loader2 } from "lucide-react";
 export function useOnboardingGuard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -11,10 +11,14 @@ function setCors(res: VercelResponse) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 }
 
+const FALLBACK_PRODUCT_BASIC = "prod_U5aHbRwGTN7xrH";
+const FALLBACK_PRODUCT_PROFESSIONAL = "prod_U5aIsM1EfFuyrj";
+const FALLBACK_PRODUCT_ENTERPRISE = "prod_U5aIAlewBWuFxK";
+
 const TIER_LIMITS: Record<string, number> = {
-  "prod_U5aHbRwGTN7xrH": 10,
-  "prod_U5aIsM1EfFuyrj": 25,
-  "prod_U5aIAlewBWuFxK": 999,
+  [process.env.STRIPE_PRODUCT_BASIC || FALLBACK_PRODUCT_BASIC]: 10,
+  [process.env.STRIPE_PRODUCT_PROFESSIONAL || FALLBACK_PRODUCT_PROFESSIONAL]: 25,
+  [process.env.STRIPE_PRODUCT_ENTERPRISE || FALLBACK_PRODUCT_ENTERPRISE]: 999,
 };
 const DEFAULT_LIMIT = 5;
 

@@ -2,10 +2,24 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import type { Database } from "@/integrations/supabase/types";
+
+export type Alert = Database["public"]["Tables"]["alerts"]["Row"];
+export type ActivityEvent = Database["public"]["Tables"]["activity_events"]["Row"];
+
+export interface ActiveSource {
+  id: string;
+  custom_name: string | null;
+  source_id: string | null;
+  is_custom: boolean;
+  last_checked_at: string | null;
+  status: string;
+  policy_sources: { name: string } | null;
+}
 
 export function useOrganizationId() {
   const { user } = useAuth();
-  return useQuery({
+  return useQuery<string | null>({
     queryKey: ["organization-id", user?.id],
     enabled: !!user,
     queryFn: async () => {
@@ -15,13 +29,13 @@ export function useOrganizationId() {
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return (data?.organization_id ?? null) as string | null;
+      return data?.organization_id ?? null;
     },
   });
 }
 
 export function useActiveSources(orgId: string | null | undefined) {
-  return useQuery({
+  return useQuery<ActiveSource[]>({
     queryKey: ["active-sources", orgId],
     enabled: !!orgId,
     queryFn: async () => {
@@ -30,13 +44,13 @@ export function useActiveSources(orgId: string | null | undefined) {
         .select("id, custom_name, source_id, is_custom, last_checked_at, status, policy_sources(name)")
         .eq("organization_id", orgId!);
       if (error) throw error;
-      return data ?? [];
+      return (data as unknown as ActiveSource[]) ?? [];
     },
   });
 }
 
 export function useAlerts(orgId: string | null | undefined) {
-  return useQuery({
+  return useQuery<Alert[]>({
     queryKey: ["alerts", orgId],
     enabled: !!orgId,
     queryFn: async () => {
@@ -47,7 +61,7 @@ export function useAlerts(orgId: string | null | undefined) {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data ?? [];
+      return (data as Alert[]) ?? [];
     },
   });
 }
@@ -73,7 +87,7 @@ export function useBriefsThisMonth(orgId: string | null | undefined) {
 }
 
 export function useActivityEvents(orgId: string | null | undefined) {
-  return useQuery({
+  return useQuery<ActivityEvent[]>({
     queryKey: ["activity-events", orgId],
     enabled: !!orgId,
     queryFn: async () => {
@@ -84,7 +98,7 @@ export function useActivityEvents(orgId: string | null | undefined) {
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
-      return data ?? [];
+      return (data as ActivityEvent[]) ?? [];
     },
   });
 }

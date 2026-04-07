@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { RecentAlerts } from "@/components/dashboard/RecentAlerts";
@@ -87,6 +88,7 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout unreadCount={unreadAlerts.length}>
+      <PageErrorBoundary pageName="Dashboard">
       <div className="space-y-6">
         <UpgradeBanner />
 
@@ -161,6 +163,7 @@ const Dashboard = () => {
       {showWelcome && orgId && (
         <WelcomeModal orgId={orgId} onDismiss={handleDismissWelcome} />
       )}
+      </PageErrorBoundary>
     </DashboardLayout>
   );
 };

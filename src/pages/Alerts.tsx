@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { AlertFilters } from "@/components/alerts/AlertFilters";
 import { AlertCard } from "@/components/alerts/AlertCard";
@@ -34,6 +35,7 @@ const Alerts = () => {
 
   return (
     <DashboardLayout unreadCount={unreadCount}>
+      <PageErrorBoundary pageName="Alerts">
       <div className="space-y-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Alerts</h1>
@@ -83,6 +85,7 @@ const Alerts = () => {
           </>
         )}
       </div>
+      </PageErrorBoundary>
     </DashboardLayout>
   );
 };
