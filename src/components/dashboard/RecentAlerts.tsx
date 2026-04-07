@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, ChevronRight } from "lucide-react";
 import { formatDistanceToNow, differenceInMinutes } from "date-fns";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface Alert {
   id: string;
@@ -45,13 +46,11 @@ export function RecentAlerts({ alerts, loading }: { alerts: Alert[]; loading?: b
             </div>
           ))
         ) : recent.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10">
-            <Shield className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="font-semibold text-muted-foreground">All clear</p>
-            <p className="text-sm text-muted-foreground/70 mt-1 text-center max-w-[240px]">
-              When policy changes are detected, alerts will appear here.
-            </p>
-          </div>
+          <EmptyState
+            icon={Shield}
+            title="All clear"
+            description="When policy changes are detected, alerts will appear here."
+          />
         ) : (
           recent.map((a) => {
             const style = severityRow[a.severity] ?? severityRow.informational;

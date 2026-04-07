@@ -178,6 +178,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: "email and role are required" });
         }
 
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(normalizedEmail)) {
+          return res.status(400).json({ error: "Invalid email format" });
+        }
+
         const orgId = await getOrgIdFromToken(token);
         if (!orgId) {
           return res.status(403).json({ error: "No organization found. Please complete onboarding." });
@@ -223,7 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .from("team_invites")
           .insert({
             organization_id: orgId,
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             code: inviteCode,
             role,
             expires_at: expiresAt.toISOString(),
@@ -251,7 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await adminClient.from("activity_events").insert({
           organization_id: orgId,
           event_type: "member_invited",
-          description: `Invited ${email} as ${role}`,
+          description: `Invited ${normalizedEmail} as ${role}`,
         });
 
         await adminClient.from("audit_log").insert({
@@ -260,7 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           action: "member_invited",
           user_email: requesterEmail ?? null,
           resource_type: "team_member",
-          resource_name: email,
+          resource_name: normalizedEmail,
           details: `Invited as ${role}`,
         }).then(() => {});
 

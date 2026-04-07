@@ -41,7 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const orgId = profile.organization_id;
-    const { query = "", limit = 20, offset = 0 } = req.body || {};
+    const { query = "" } = req.body || {};
+    const limit = Math.min(Math.max(parseInt(String(req.body?.limit ?? 20)), 1), 100);
+    const offset = Math.max(parseInt(String(req.body?.offset ?? 0)), 0);
 
     if (!query || query.trim().length === 0) {
       const { data: allBriefs, error } = await supabase

@@ -92,7 +92,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { org_id: requestOrgId, batch_size = 20 } = req.body || {};
+    const { org_id: requestOrgId } = req.body || {};
+    const batch_size = Math.min(Math.max(parseInt(String(req.body?.batch_size ?? 20)), 1), 100);
 
     let sourcesToProcess = [];
 

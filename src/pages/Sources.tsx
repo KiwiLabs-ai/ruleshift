@@ -1,15 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Radar, ArrowUpRight, LayoutGrid, List, RefreshCw, Sparkles } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SourcesTable } from "@/components/sources/SourcesTable";
 import { SourceCardGrid } from "@/components/sources/SourceCardGrid";
 import { AddSourceModal } from "@/components/sources/AddSourceModal";
 import { useSourcesData } from "@/hooks/use-sources-data";
 import { useOrganizationId } from "@/hooks/use-dashboard-data";
 import { useToast } from "@/hooks/use-toast";
+
+type SortOption = "name" | "recent" | "status" | "last_checked";
+type StatusFilter = "all" | "active" | "error" | "pending";
+
+const getSourceName = (item: any): string =>
+  item.custom_name || item.sources?.name || "Unnamed";
 
 const SourcesPage = () => {
   const {
@@ -41,6 +55,46 @@ const SourcesPage = () => {
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [sortBy, setSortBy] = useState<SortOption>("name");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const isCheckInFlight = isCheckingSource || isCheckingAll;
+
+  const filteredSortedWatchlist = useMemo(() => {
+    const filtered =
+      statusFilter === "all"
+        ? watchlist
+        : watchlist.filter((item: any) => item.status === statusFilter);
+
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case "name":
+        sorted.sort((a: any, b: any) =>
+          getSourceName(a).localeCompare(getSourceName(b))
+        );
+        break;
+      case "recent":
+        sorted.sort(
+          (a: any, b: any) =>
+            new Date(b.added_at ?? 0).getTime() -
+            new Date(a.added_at ?? 0).getTime()
+        );
+        break;
+      case "status":
+        sorted.sort((a: any, b: any) =>
+          (a.status ?? "").localeCompare(b.status ?? "")
+        );
+        break;
+      case "last_checked":
+        sorted.sort(
+          (a: any, b: any) =>
+            new Date(b.last_checked_at ?? 0).getTime() -
+            new Date(a.last_checked_at ?? 0).getTime()
+        );
+        break;
+    }
+    return sorted;
+  }, [watchlist, statusFilter, sortBy]);
 
   const handleRemove = async (id: string) => {
     try {
@@ -104,7 +158,7 @@ const SourcesPage = () => {
           </div>
           <div className="flex items-center gap-2">
             {watchlist.length > 0 && (
-              <Button variant="outline" onClick={handleCheckAll} disabled={isCheckingAll || !orgId}>
+              <Button variant="outline" onClick={handleCheckAll} disabled={isCheckInFlight || !orgId}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${isCheckingAll ? "animate-spin" : ""}`} />
                 {isCheckingAll ? "Checking…" : "Check All Sources"}
               </Button>
@@ -173,6 +227,37 @@ const SourcesPage = () => {
           </div>
         )}
 
+        {/* Sort + filter controls */}
+        {!isLoading && watchlist.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Sort: Name</SelectItem>
+                <SelectItem value="recent">Sort: Recently Added</SelectItem>
+                <SelectItem value="status">Sort: Status</SelectItem>
+                <SelectItem value="last_checked">Sort: Last Checked</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            >
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Content */}
         {isLoading ? (
           <div className="space-y-2">
@@ -181,32 +266,34 @@ const SourcesPage = () => {
             ))}
           </div>
         ) : watchlist.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Radar className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground">No sources yet</h3>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Add policy sources to start monitoring for changes that affect your business.
-            </p>
-            <Button className="mt-4" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Your First Source
-            </Button>
-          </div>
+          <EmptyState
+            icon={Radar}
+            title="No sources yet"
+            description="Add policy sources to start monitoring for changes that affect your business."
+            action={{ label: "Add Your First Source", onClick: () => setAddOpen(true) }}
+          />
+        ) : filteredSortedWatchlist.length === 0 ? (
+          <EmptyState
+            icon={Radar}
+            title="No sources match your filters"
+            description="Try adjusting the status filter to see more sources."
+          />
         ) : view === "grid" ? (
           <SourceCardGrid
-            watchlist={watchlist}
+            watchlist={filteredSortedWatchlist}
             onRemove={handleRemove}
             onAddClick={() => setAddOpen(true)}
             onCheck={handleCheckSource}
             onRetry={handleRetry}
-            checkingSourceId={isCheckingSource ? checkingSourceId : null}
+            checkingSourceId={isCheckInFlight ? checkingSourceId : null}
           />
         ) : (
           <SourcesTable
-            watchlist={watchlist}
+            watchlist={filteredSortedWatchlist}
             onRemove={handleRemove}
             onCheck={handleCheckSource}
             onRetry={handleRetry}
-            checkingSourceId={isCheckingSource ? checkingSourceId : null}
+            checkingSourceId={isCheckInFlight ? checkingSourceId : null}
           />
         )}
       </div>

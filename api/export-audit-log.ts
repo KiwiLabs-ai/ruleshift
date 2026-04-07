@@ -96,6 +96,34 @@ export default async function handler(
       return res.status(400).json({ error: "Missing organization ID" });
     }
 
+    // Validate date range if provided
+    const MAX_RANGE_MS = 365 * 24 * 60 * 60 * 1000;
+    let startDateObj: Date | undefined;
+    let endDateObj: Date | undefined;
+
+    if (start_date !== undefined) {
+      startDateObj = new Date(start_date);
+      if (isNaN(startDateObj.getTime())) {
+        return res.status(400).json({ error: "Invalid start_date: must be a valid ISO date string" });
+      }
+    }
+
+    if (end_date !== undefined) {
+      endDateObj = new Date(end_date);
+      if (isNaN(endDateObj.getTime())) {
+        return res.status(400).json({ error: "Invalid end_date: must be a valid ISO date string" });
+      }
+    }
+
+    if (startDateObj && endDateObj) {
+      if (startDateObj.getTime() >= endDateObj.getTime()) {
+        return res.status(400).json({ error: "start_date must be before end_date" });
+      }
+      if (endDateObj.getTime() - startDateObj.getTime() > MAX_RANGE_MS) {
+        return res.status(400).json({ error: "Date range must not exceed 365 days" });
+      }
+    }
+
     // Verify org membership
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from("organization_members")
