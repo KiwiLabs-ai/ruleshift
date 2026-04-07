@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Radar, ArrowUpRight, LayoutGrid, List, RefreshCw, Sparkles } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToastAction } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   Select,
@@ -53,6 +55,7 @@ const SourcesPage = () => {
 
   const { data: orgId } = useOrganizationId();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState<SortOption>("name");
@@ -110,7 +113,15 @@ const SourcesPage = () => {
     try {
       const result = await checkSource({ sourceId, orgId });
       if (result?.changes_detected > 0) {
-        toast({ title: "Change detected! Generating brief..." });
+        toast({
+          title: "Change detected — brief generated",
+          description: "Open the Alerts page to read the new brief.",
+          action: (
+            <ToastAction altText="View alerts" onClick={() => navigate("/alerts")}>
+              View alerts
+            </ToastAction>
+          ),
+        });
       } else {
         toast({ title: "No changes detected" });
       }
@@ -123,8 +134,17 @@ const SourcesPage = () => {
     if (!orgId) return;
     try {
       const result = await checkAllSources({ orgId, batchSize: 100 });
+      const checked = result?.processed ?? result?.sources_checked ?? 0;
+      const changes = result?.changes_detected ?? 0;
       toast({
-        title: `Checked ${result?.sources_checked ?? 0} sources. ${result?.changes_detected ?? 0} changes detected.`,
+        title: `Checked ${checked} sources — ${changes} change${changes === 1 ? "" : "s"} detected`,
+        description: changes > 0 ? "Briefs are being generated. Check the Alerts page." : undefined,
+        action:
+          changes > 0 ? (
+            <ToastAction altText="View alerts" onClick={() => navigate("/alerts")}>
+              View alerts
+            </ToastAction>
+          ) : undefined,
       });
     } catch {
       toast({ title: "Error", description: "Failed to check sources.", variant: "destructive" });

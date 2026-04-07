@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
+// Anthropic round-trip can take up to ~60s; give the function enough budget.
+export const maxDuration = 90;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

@@ -2,6 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
+
+// Single-source user calls await generate-brief, which can take up to ~60s
+// for the Anthropic round-trip. Give this function enough budget to cover it.
+export const maxDuration = 90;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -298,7 +303,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .single();
 
           if (!alertErr && alert?.id) {
-            fetch(`${process.env.APP_URL}/api/generate-brief`, {
+            // In single-source (user "Check Now") mode, await the brief call so
+            // it actually completes — Vercel suspends the function as soon as
+            // the handler returns, which kills any in-flight fire-and-forget
+            // fetch. In cron/batch mode we keep it fire-and-forget because the
+            // batch may spawn many briefs.
+            const briefRequest = fetch(`${process.env.APP_URL}/api/generate-brief`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -312,7 +322,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }),
             }).catch((err) => {
               console.error("Failed to trigger brief generation:", err);
+              return null;
             });
+
+            if (requestSourceId) {
+              const briefRes = await briefRequest;
+              if (!briefRes || !briefRes.ok) {
+                console.error(
+                  "generate-brief returned non-ok status",
+                  briefRes?.status,
+                  await briefRes?.text().catch(() => "")
+                );
+              }
+            }
           }
 
           await adminClient.from("activity_events").insert({
