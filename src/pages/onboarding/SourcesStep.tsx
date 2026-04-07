@@ -124,11 +124,29 @@ const SourcesStep = () => {
     );
   };
 
+  const isValidHttpUrl = (value: string): boolean => {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+
   const addCustomSource = () => {
-    if (!customUrl.trim()) return;
+    const trimmed = customUrl.trim();
+    if (!trimmed) return;
+    if (!isValidHttpUrl(trimmed)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid URL",
+        description: "Please enter a valid http:// or https:// URL.",
+      });
+      return;
+    }
     setCustomSources((prev) => [
       ...prev,
-      { url: customUrl.trim(), name: customName.trim(), selector: customSelector.trim() },
+      { url: trimmed, name: customName.trim(), selector: customSelector.trim() },
     ]);
     setCustomUrl("");
     setCustomName("");

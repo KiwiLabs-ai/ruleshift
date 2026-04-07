@@ -8,8 +8,13 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+const COMMON_WEAK_PASSWORDS = ["password", "12345678", "qwerty", "letmein", "admin"];
+
 const getPasswordStrength = (pw: string): { label: string; color: string; width: string } => {
   if (pw.length === 0) return { label: "", color: "", width: "0%" };
+  if (COMMON_WEAK_PASSWORDS.includes(pw.toLowerCase())) {
+    return { label: "Very Weak", color: "bg-destructive", width: "10%" };
+  }
   let score = 0;
   if (pw.length >= 8) score++;
   if (/[A-Z]/.test(pw)) score++;
@@ -35,8 +40,12 @@ const Signup = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !email.trim() || password.length < 6) {
-      toast({ variant: "destructive", title: "Please fill all fields (password min 6 chars)." });
+    if (!fullName.trim() || !email.trim() || password.length < 8) {
+      toast({ variant: "destructive", title: "Please fill all fields (password min 8 chars)." });
+      return;
+    }
+    if (COMMON_WEAK_PASSWORDS.includes(password.toLowerCase())) {
+      toast({ variant: "destructive", title: "Password is too common. Please choose a stronger password." });
       return;
     }
     setLoading(true);
@@ -143,7 +152,7 @@ const Signup = () => {
                   type={showPw ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
+                  placeholder="Min 8 characters"
                   className="auth-input"
                 />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPw(!showPw)}>

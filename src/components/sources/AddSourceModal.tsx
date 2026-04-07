@@ -131,8 +131,25 @@ export function AddSourceModal({
     }
   };
 
+  const isValidHttpUrl = (value: string): boolean => {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+
   const handleAddCustom = async () => {
     if (!customName || !customUrl) return;
+    if (!isValidHttpUrl(customUrl)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid URL",
+        description: "Please enter a valid http:// or https:// URL.",
+      });
+      return;
+    }
     try {
       await onAddCustom({
         url: customUrl,

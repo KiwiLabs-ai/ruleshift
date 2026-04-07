@@ -81,7 +81,6 @@ export function AuditLogTab() {
 
       toast({ title: "Audit log exported" });
     } catch (err: any) {
-      console.error("Export failed:", err);
       toast({
         title: "Export failed",
         description: "Please try again.",

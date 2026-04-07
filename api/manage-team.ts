@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 
 const corsHeaders = {
@@ -214,18 +215,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        const inviteCode = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        const inviteCode = randomBytes(16).toString("hex");
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
 
-        const { error: insertErr } = await adminClient.from("team_invites").insert({
-          organization_id: orgId,
-          email: email.toLowerCase(),
-          code: inviteCode,
-          role,
-          expires_at: expiresAt.toISOString(),
-        });
+        const { data: insertedInvite, error: insertErr } = await adminClient
+          .from("team_invites")
+          .insert({
+            organization_id: orgId,
+            email: email.toLowerCase(),
+            code: inviteCode,
+            role,
+            expires_at: expiresAt.toISOString(),
+          })
+          .select("id")
+          .single();
         if (insertErr) throw insertErr;
+
+        // Race condition guard: after insert, recount and roll back if over limit.
+        const { count: postCount, error: postCountErr } = await adminClient
+          .from("profiles")
+          .select("user_id", { count: "exact", head: true })
+          .eq("organization_id", orgId);
+        if (postCountErr) {
+          await adminClient.from("team_invites").delete().eq("id", insertedInvite.id);
+          throw postCountErr;
+        }
+        if ((postCount ?? 0) + 1 > memberLimit) {
+          await adminClient.from("team_invites").delete().eq("id", insertedInvite.id);
+          return res.status(403).json({
+            error: `Member limit reached. Your current plan allows up to ${memberLimit} team members.`,
+          });
+        }
 
         await adminClient.from("activity_events").insert({
           organization_id: orgId,

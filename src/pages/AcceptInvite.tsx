@@ -54,7 +54,11 @@ const AcceptInvite = () => {
         setInvite(data.invite);
       }
     } catch (err: any) {
-      console.error("Check invite error:", err);
+      toast({
+        variant: "destructive",
+        title: "Failed to check invitation",
+        description: err?.message ?? "Please try again.",
+      });
     } finally {
       setInviteLoading(false);
       setInviteChecked(true);

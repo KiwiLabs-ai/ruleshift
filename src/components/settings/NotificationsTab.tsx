@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -10,6 +11,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNotificationPrefs, useUpdateNotificationPrefs } from "@/hooks/use-settings-data";
 import { useToast } from "@/hooks/use-toast";
 import { Bell } from "lucide-react";
+
+interface FormSnapshot {
+  emailEnabled: boolean;
+  digestFrequency: string;
+  preferredTime: string;
+  preferredDay: string;
+  severity: string;
+}
 
 const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -24,16 +33,48 @@ export function NotificationsTab() {
   const [preferredTime, setPreferredTime] = useState("09:00");
   const [preferredDay, setPreferredDay] = useState("Monday");
   const [severity, setSeverity] = useState("all");
+  const [initial, setInitial] = useState<FormSnapshot | null>(null);
 
   useEffect(() => {
     if (prefs) {
-      setEmailEnabled(prefs.email_enabled);
-      setDigestFrequency(prefs.digest_frequency);
-      setPreferredTime(prefs.preferred_time ?? "09:00");
-      setPreferredDay(prefs.preferred_day ? prefs.preferred_day.charAt(0).toUpperCase() + prefs.preferred_day.slice(1) : "Monday");
-      setSeverity(prefs.severity_threshold);
+      const snapshot: FormSnapshot = {
+        emailEnabled: prefs.email_enabled,
+        digestFrequency: prefs.digest_frequency,
+        preferredTime: prefs.preferred_time ?? "09:00",
+        preferredDay: prefs.preferred_day
+          ? prefs.preferred_day.charAt(0).toUpperCase() + prefs.preferred_day.slice(1)
+          : "Monday",
+        severity: prefs.severity_threshold,
+      };
+      setEmailEnabled(snapshot.emailEnabled);
+      setDigestFrequency(snapshot.digestFrequency);
+      setPreferredTime(snapshot.preferredTime);
+      setPreferredDay(snapshot.preferredDay);
+      setSeverity(snapshot.severity);
+      setInitial(snapshot);
     }
   }, [prefs]);
+
+  const hasChanges = useMemo(() => {
+    if (!initial) return false;
+    return (
+      initial.emailEnabled !== emailEnabled ||
+      initial.digestFrequency !== digestFrequency ||
+      initial.preferredTime !== preferredTime ||
+      initial.preferredDay !== preferredDay ||
+      initial.severity !== severity
+    );
+  }, [initial, emailEnabled, digestFrequency, preferredTime, preferredDay, severity]);
+
+  useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasChanges]);
 
   const handleSave = async () => {
     try {
@@ -44,6 +85,7 @@ export function NotificationsTab() {
         preferred_day: digestFrequency === "weekly" ? preferredDay.toLowerCase() : null,
         severity_threshold: severity,
       });
+      setInitial({ emailEnabled, digestFrequency, preferredTime, preferredDay, severity });
       toast({ title: "Preferences saved" });
     } catch {
       toast({ title: "Error saving preferences", variant: "destructive" });
@@ -124,13 +166,18 @@ export function NotificationsTab() {
         </RadioGroup>
       </div>
 
-      <div className="flex gap-3">
-        <Button onClick={handleSave} disabled={updatePrefs.isPending}>
+      <div className="flex items-center gap-3">
+        <Button onClick={handleSave} disabled={updatePrefs.isPending || !hasChanges}>
           {updatePrefs.isPending ? "Saving…" : "Save Preferences"}
         </Button>
         <Button variant="outline" onClick={handleTestAlert} className="gap-1.5">
           <Bell className="h-4 w-4" /> Send Test Alert
         </Button>
+        {hasChanges && (
+          <Badge variant="outline" className="border-amber-400 text-amber-600 dark:text-amber-400">
+            Unsaved changes
+          </Badge>
+        )}
       </div>
     </div>
   );

@@ -136,7 +136,6 @@ const BriefDetail = () => {
 
       toast({ title: "Brief exported as PDF" });
     } catch (err: any) {
-      console.error("PDF export failed:", err);
       toast({
         title: "PDF export failed",
         description: "Please try again.",

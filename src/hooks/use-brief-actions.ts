@@ -46,8 +46,7 @@ export function useBriefActionItems(briefId: string | undefined, actionCount: nu
       .from("brief_action_items")
       .insert(rows)
       .then(({ error }) => {
-        if (error) console.warn("[action-items] seed error:", error.message);
-        else queryClient.invalidateQueries({ queryKey: ["brief-action-items", briefId] });
+        if (!error) queryClient.invalidateQueries({ queryKey: ["brief-action-items", briefId] });
       });
   }, [briefId, actionCount, query.isLoading, query.data, queryClient]);
 

@@ -35,10 +35,10 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
     scanFired.current = true;
     supabase.functions
       .invoke("monitor-sources", { body: { org_id: orgId } })
-      .catch((err) => console.warn("[WelcomeModal] monitor-sources fire-and-forget error:", err));
+      .catch(() => {});
     supabase.functions
       .invoke("seed-sample-data", { body: { organization_id: orgId, user_id: user?.id } })
-      .catch((err) => console.warn("[WelcomeModal] seed-sample-data fire-and-forget error:", err));
+      .catch(() => {});
   }, [orgId]);
 
   // Mark shown in sessionStorage

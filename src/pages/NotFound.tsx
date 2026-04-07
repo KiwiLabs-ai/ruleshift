@@ -9,7 +9,6 @@ const NotFound = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
     document.title = "Page Not Found — RuleShift";
   }, [location.pathname]);
 
