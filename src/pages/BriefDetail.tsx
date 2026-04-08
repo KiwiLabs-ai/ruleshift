@@ -48,7 +48,11 @@ const BriefDetail = () => {
     if (!brief || !alert || !canRegenerate) return;
     setIsRegenerating(true);
     try {
-      const { data, error } = await apiCall("generate-brief", { alert_id: alert.id, org_source_id: orgSourceId });
+      // The backend looks up the latest page_snapshot for this alert's
+      // org_source_id and regenerates in place (updates the existing briefs
+      // row rather than inserting a new one), so the /briefs/<id> URL the
+      // user is currently viewing stays valid.
+      const { error } = await apiCall("generate-brief", { alert_id: alert.id });
       if (error) throw new Error(error);
       await queryClient.invalidateQueries({ queryKey: ["brief-detail", briefId] });
       toast({ title: "Brief regenerated", description: "Brief regenerated successfully." });

@@ -254,10 +254,12 @@ export async function generateBriefForAlert(
 ): Promise<GenerateBriefResult> {
   const { adminClient, alertId, organizationId, content, previousContent, supplementaryDocs, sourceNameFallback } = params;
 
-  // Look up the alert so we can copy title/source_name onto the brief row.
+  // Look up the alert so we can copy title/source_name onto the brief row,
+  // and so we know whether to update an existing brief (regeneration) or
+  // insert a new one.
   const { data: alert, error: alertLookupErr } = await adminClient
     .from("alerts")
-    .select("id, title, source_name")
+    .select("id, title, source_name, brief_id")
     .eq("id", alertId)
     .single();
 
@@ -356,29 +358,52 @@ export async function generateBriefForAlert(
     ? firstParagraph.substring(0, 297) + "..."
     : firstParagraph;
 
-  const { data: brief, error: briefInsertErr } = await adminClient
-    .from("briefs")
-    .insert({
-      organization_id: organizationId,
-      alert_id: alertId,
-      title: alert.title,
-      source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
-      summary,
-      content: briefText,
-    })
-    .select("id")
-    .single();
+  // If the alert already has a brief (i.e. this is a regeneration), update
+  // the existing row in place so the brief_id stays stable. The user may be
+  // actively viewing /briefs/<id> and we don't want to 404 them.
+  // Otherwise insert a new row and link it.
+  let briefIdForResult: string;
+  if (alert.brief_id) {
+    const { error: briefUpdateErr } = await adminClient
+      .from("briefs")
+      .update({
+        title: alert.title,
+        source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
+        summary,
+        content: briefText,
+      })
+      .eq("id", alert.brief_id);
 
-  if (briefInsertErr || !brief?.id) {
-    throw briefInsertErr || new Error("Failed to insert brief");
+    if (briefUpdateErr) {
+      throw briefUpdateErr;
+    }
+    briefIdForResult = alert.brief_id;
+  } else {
+    const { data: brief, error: briefInsertErr } = await adminClient
+      .from("briefs")
+      .insert({
+        organization_id: organizationId,
+        alert_id: alertId,
+        title: alert.title,
+        source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
+        summary,
+        content: briefText,
+      })
+      .select("id")
+      .single();
+
+    if (briefInsertErr || !brief?.id) {
+      throw briefInsertErr || new Error("Failed to insert brief");
+    }
+
+    const { error: updateAlertErr } = await adminClient
+      .from("alerts")
+      .update({ brief_id: brief.id })
+      .eq("id", alertId);
+
+    if (updateAlertErr) throw updateAlertErr;
+    briefIdForResult = brief.id;
   }
-
-  const { error: updateAlertErr } = await adminClient
-    .from("alerts")
-    .update({ brief_id: brief.id })
-    .eq("id", alertId);
-
-  if (updateAlertErr) throw updateAlertErr;
 
   // Best-effort activity log + audit entry. Failures here should not abort
   // the brief — it's already written.
@@ -408,5 +433,5 @@ export async function generateBriefForAlert(
       if (r.error) console.error("audit_log insert failed:", r.error);
     });
 
-  return { briefId: brief.id, briefLength: briefText.length };
+  return { briefId: briefIdForResult, briefLength: briefText.length };
 }
