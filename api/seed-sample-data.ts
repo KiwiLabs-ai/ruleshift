@@ -27,14 +27,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { data: existingAlerts, error: checkErr } = await adminClient
+    // Idempotency check — head:true returns { count } not rows, so read
+    // `count` directly. The previous implementation checked `.length > 0`
+    // which was always false, so re-running this endpoint kept inserting
+    // duplicate sample rows.
+    const { count: existingAlertsCount, error: checkErr } = await adminClient
       .from("alerts")
       .select("id", { count: "exact", head: true })
-      .eq("organization_id", organization_id);
+      .eq("organization_id", organization_id)
+      .ilike("title", "Sample:%");
 
     if (checkErr) throw checkErr;
 
-    if ((existingAlerts?.length ?? 0) > 0) {
+    if ((existingAlertsCount ?? 0) > 0) {
       return res.status(200).json({
         success: true,
         skipped: true,
@@ -42,51 +47,88 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const now = new Date().toISOString();
-    const yesterdayContentHash = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6";
-    const todayContentHash = "z6y5x4w3v2u1t0s9r8q7p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1";
+    const sourceName = "CFPB — Regulation E (Electronic Fund Transfers)";
+    const alertTitle = "Sample: New amendments to CFPB Regulation E";
 
-    const sampleAlertContent = `
-    <div>
-      <h1>New Policy Update: Data Privacy Requirements</h1>
-      <p>The government has issued updated guidelines on personal data handling and storage.</p>
-      <section>
-        <h2>Key Changes:</h2>
-        <ul>
-          <li>All personal data must be encrypted at rest and in transit</li>
-          <li>Data retention policies must be reviewed quarterly</li>
-          <li>Users must be notified of any data breaches within 24 hours</li>
-          <li>Third-party data processors require explicit written agreements</li>
-        </ul>
-      </section>
-      <p>Effective date: Thirty days from publication.</p>
-    </div>
-    `;
+    // Pre-generated illustrative brief content. This is a fixture — we don't
+    // call the model for seed data to keep onboarding free of API spend.
+    const briefSummary =
+      "The CFPB has finalized amendments to Regulation E expanding error-resolution timelines and requiring additional disclosures for peer-to-peer payment apps. Compliance teams at banks and fintechs will need to update disclosure flows within 90 days of the effective date.";
 
+    const briefContent = `## What Changed
+The CFPB issued a final rule amending 12 CFR Part 1005 (Regulation E) to extend the error-resolution investigation window for peer-to-peer payment services from 10 to 45 business days, and to require enhanced consumer disclosures at enrollment for unauthorized-transfer liability.
+
+## Who Is Affected
+Banks, credit unions, and non-bank fintech companies that offer consumer-to-consumer electronic fund transfer services (e.g., P2P apps, digital wallets, remittance platforms) operating in the United States.
+
+## Required Actions
+1. Review existing Regulation E disclosure templates against the new enrollment-disclosure requirements
+2. Update internal policies for unauthorized-transfer investigations to accommodate the new 45-day window
+3. Brief the customer support and dispute-resolution teams on the new timelines before the effective date
+4. Audit P2P payment flows for compliance gaps against the amended rule text
+
+## Deadline
+Effective 90 days from publication in the Federal Register.
+
+## Business Impact
+This amendment increases operational burden on dispute-handling teams and will require updates to multiple customer-facing disclosure screens. Fintechs operating thin compliance functions may need to add headcount or automation to meet the expanded investigation window. Non-compliance exposes institutions to CFPB enforcement action and consumer civil liability.`;
+
+    // Insert the sample alert first so we have an id to link the brief to.
     const { data: alert, error: alertErr } = await adminClient
       .from("alerts")
       .insert({
         organization_id,
-        title: "Sample Alert: New Data Privacy Requirements",
-        description: "Updated guidelines on personal data handling and storage requirements",
-        status: "briefed",
-        content_preview: sampleAlertContent.substring(0, 500),
-        content_hash: todayContentHash,
-        brief: `This policy update introduces stricter requirements for data privacy and protection. Organizations must implement encryption for all personal data, conduct quarterly data retention reviews, notify users of breaches within 24 hours, and establish written agreements with third-party processors. The effective date is 30 days from the policy publication date. This represents a significant increase in compliance obligations.`,
-        briefed_at: now,
+        title: alertTitle,
+        source_name: sourceName,
+        severity: "important",
+        is_read: false,
       })
       .select("id")
       .single();
 
-    if (alertErr || !alert?.id) throw alertErr || new Error("Failed to create sample alert");
+    if (alertErr || !alert?.id) {
+      throw alertErr || new Error("Failed to create sample alert");
+    }
 
-    await adminClient.from("activity_events").insert({
+    // Insert a matching brief row.
+    const { data: brief, error: briefErr } = await adminClient
+      .from("briefs")
+      .insert({
+        organization_id,
+        alert_id: alert.id,
+        title: alertTitle,
+        source_name: sourceName,
+        summary: briefSummary,
+        content: briefContent,
+      })
+      .select("id")
+      .single();
+
+    if (briefErr || !brief?.id) {
+      // Roll back the orphan alert so the next run can retry cleanly.
+      await adminClient.from("alerts").delete().eq("id", alert.id);
+      throw briefErr || new Error("Failed to create sample brief");
+    }
+
+    // Link the alert to the brief.
+    const { error: linkErr } = await adminClient
+      .from("alerts")
+      .update({ brief_id: brief.id })
+      .eq("id", alert.id);
+    if (linkErr) {
+      console.error("seed-sample-data: failed to link alert → brief:", linkErr);
+    }
+
+    const { error: activityErr } = await adminClient.from("activity_events").insert({
       organization_id,
       event_type: "sample_data_created",
       description: "Sample alert and brief created for onboarding",
     });
+    if (activityErr) {
+      console.error("seed-sample-data: activity_events insert failed:", activityErr);
+    }
 
-    await adminClient.from("audit_log").insert({
+    const { error: auditErr } = await adminClient.from("audit_log").insert({
       organization_id,
       user_id,
       action: "sample_data_created",
@@ -94,11 +136,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       resource_type: "alert",
       resource_id: alert.id,
       details: "Sample alert and brief created during onboarding",
-    }).then(() => {});
+    });
+    if (auditErr) {
+      console.error("seed-sample-data: audit_log insert failed:", auditErr);
+    }
 
     return res.status(200).json({
       success: true,
       alert_id: alert.id,
+      brief_id: brief.id,
       message: "Sample data created successfully",
     });
   } catch (err) {
