@@ -3,12 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 import { generateBriefForAlert, classifyChangeSubstantive } from "./_shared/brief-core.js";
-// pdf-parse@1 ships no type declarations and is CJS; require() via
-// createRequire keeps it out of the esbuild bundling path and avoids the
-// default-export interop issues that show up when using ESM `import`.
-import { createRequire } from "module";
-const pdfParse: (buffer: Uint8Array | Buffer) => Promise<{ text: string }> =
-  createRequire(import.meta.url)("pdf-parse");
+// Import pdf-parse@1's inner module directly. Importing from the package
+// root (index.js) trips a debug branch that tries to read a bundled test
+// PDF at import time, which breaks on serverless. Importing the inner file
+// also gives the bundler a concrete dependency path to trace.
+// @ts-ignore — pdf-parse@1 ships no type declarations
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 // Single-source user calls await generate-brief, which can take up to ~60s
 // for the Anthropic round-trip. Give this function enough budget to cover it.
