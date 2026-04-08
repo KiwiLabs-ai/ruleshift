@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "./use-dashboard-data";
 
 export type SeverityFilter = "all" | "critical" | "important" | "informational";
@@ -27,6 +28,7 @@ export const defaultFilters: AlertsFilters = {
 
 export function useAlertsPage() {
   const { data: orgId, isLoading: orgLoading } = useOrganizationId();
+  const { toast } = useToast();
   const [filters, setFilters] = useState<AlertsFilters>(defaultFilters);
   const [limit, setLimit] = useState(20);
   const queryClient = useQueryClient();
@@ -121,6 +123,15 @@ export function useAlertsPage() {
       queryClient.invalidateQueries({ queryKey: ["alerts-page"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Could not mark alert as read";
+      console.error("[alerts] markRead failed:", err);
+      toast({
+        title: "Couldn't mark as read",
+        description: message,
+        variant: "destructive",
+      });
+    },
   });
 
   const markAllReadMutation = useMutation({
@@ -136,6 +147,16 @@ export function useAlertsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts-page"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      toast({ title: "All alerts marked as read" });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Could not mark alerts as read";
+      console.error("[alerts] markAllRead failed:", err);
+      toast({
+        title: "Couldn't mark all as read",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 
