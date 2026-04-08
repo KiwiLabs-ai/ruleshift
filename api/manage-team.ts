@@ -155,7 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           description: `${userEmail} accepted team invitation and joined as ${invite.role}`,
         });
 
-        await adminClient.from("audit_log").insert({
+        const { error: auditErr } = await adminClient.from("audit_log").insert({
           organization_id: invite.organization_id,
           user_id: userId,
           action: "member_joined",
@@ -163,7 +163,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "team_member",
           resource_name: userEmail || null,
           details: `User accepted invitation and joined as ${invite.role}`,
-        }).then(() => {});
+        });
+        if (auditErr) {
+          console.error("[manage-team] audit_log insert failed (member_joined):", auditErr);
+        }
 
         return res.status(200).json({
           success: true,
@@ -260,7 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           description: `Invited ${normalizedEmail} as ${role}`,
         });
 
-        await adminClient.from("audit_log").insert({
+        const { error: auditErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: requesterId,
           action: "member_invited",
@@ -268,7 +271,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "team_member",
           resource_name: normalizedEmail,
           details: `Invited as ${role}`,
-        }).then(() => {});
+        });
+        if (auditErr) {
+          console.error("[manage-team] audit_log insert failed (member_invited):", auditErr);
+        }
 
         return res.status(200).json({
           success: true,
@@ -376,7 +382,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           description: `Removed ${targetEmail} from team`,
         });
 
-        await adminClient.from("audit_log").insert({
+        const { error: auditErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: requesterId,
           action: "member_removed",
@@ -384,7 +390,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "team_member",
           resource_name: targetEmail,
           details: `Removed from organization`,
-        }).then(() => {});
+        });
+        if (auditErr) {
+          console.error("[manage-team] audit_log insert failed (member_removed):", auditErr);
+        }
 
         return res.status(200).json({ success: true });
       }
@@ -444,7 +453,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           description: `Updated ${targetEmail} role to ${role}`,
         });
 
-        await adminClient.from("audit_log").insert({
+        const { error: auditErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: requesterId,
           action: "member_role_updated",
@@ -452,7 +461,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "team_member",
           resource_name: targetEmail,
           details: `Role changed to ${role}`,
-        }).then(() => {});
+        });
+        if (auditErr) {
+          console.error("[manage-team] audit_log insert failed (member_role_updated):", auditErr);
+        }
 
         return res.status(200).json({ success: true, role });
       }

@@ -21,12 +21,20 @@ export async function checkRateLimit(
   const windowStart = new Date(now.getTime() - windowSeconds * 1000);
   const resetAt = new Date(now.getTime() + windowSeconds * 1000);
 
-  // Cleanup expired entries (older than 2 hours) — lightweight, runs inline
+  // Cleanup expired entries (older than 2 hours) — fire-and-forget so it
+  // doesn't block the request. On Vercel this may be cut short when the
+  // handler returns, but the cleanup is best-effort (the cron sweep catches
+  // anything we miss). Log any error so silent failures don't let the table
+  // grow unbounded without warning.
   admin
     .from("rate_limits")
     .delete()
     .lt("window_start", new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString())
-    .then(() => {});
+    .then(({ error: cleanupErr }) => {
+      if (cleanupErr) {
+        console.error("[rate-limit] cleanup delete failed:", cleanupErr);
+      }
+    });
 
   // Count requests in current window
   const { count, error } = await admin

@@ -189,14 +189,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_type: "sources_added",
           description: `Added ${source_ids.length} monitoring source${source_ids.length !== 1 ? "s" : ""}`,
         });
-        await adminClient.from("audit_log").insert({
+        const { error: auditAddErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: userId,
           action: "source_added",
           user_email: userData.user.email ?? null,
           resource_type: "source",
           details: `Added ${source_ids.length} source(s)`,
-        }).then(() => {});
+        });
+        if (auditAddErr) {
+          console.error("[manage-sources] audit_log insert failed (source_added):", auditAddErr);
+        }
 
         return res.status(200).json({ success: true, added: source_ids.length });
       }
@@ -218,7 +221,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_type: "source_removed",
           description: `Removed source: ${source_name || "Unknown"}`,
         });
-        await adminClient.from("audit_log").insert({
+        const { error: auditRemoveErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: userId,
           action: "source_removed",
@@ -226,7 +229,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "source",
           resource_name: source_name || null,
           details: `Removed source from watchlist`,
-        }).then(() => {});
+        });
+        if (auditRemoveErr) {
+          console.error("[manage-sources] audit_log insert failed (source_removed):", auditRemoveErr);
+        }
 
         return res.status(200).json({ success: true });
       }
@@ -265,7 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           event_type: "custom_source_added",
           description: `Added custom source: ${name}`,
         });
-        await adminClient.from("audit_log").insert({
+        const { error: auditCustomErr } = await adminClient.from("audit_log").insert({
           organization_id: orgId,
           user_id: userId,
           action: "source_added",
@@ -273,7 +279,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           resource_type: "source",
           resource_name: name,
           details: `Added custom source: ${url}`,
-        }).then(() => {});
+        });
+        if (auditCustomErr) {
+          console.error("[manage-sources] audit_log insert failed (custom_source_added):", auditCustomErr);
+        }
 
         return res.status(200).json({ success: true });
       }
