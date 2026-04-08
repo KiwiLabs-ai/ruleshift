@@ -16,16 +16,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { organization_id, user_id } = req.body;
-    if (!organization_id || !user_id) {
-      return res.status(400).json({ error: "organization_id and user_id are required" });
-    }
-
     const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+    let organization_id: string | null = null;
+    let user_id: string | null = null;
+
+    // Two allowed auth modes:
+    //   1. Cron / internal: Bearer CRON_SECRET with organization_id (and
+    //      optionally user_id) in the body.
+    //   2. User: Bearer <user JWT>. We look up the user's org from profiles
+    //      and ignore any organization_id in the body.
+    const isCronCall = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+
+    if (isCronCall) {
+      organization_id = req.body?.organization_id ?? null;
+      user_id = req.body?.user_id ?? null;
+      if (!organization_id) {
+        return res.status(400).json({ error: "organization_id is required for cron calls" });
+      }
+    } else {
+      const token = authHeader.replace("Bearer ", "");
+      const userClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+      if (userErr || !userData?.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      user_id = userData.user.id;
+
+      const { data: profile, error: profileErr } = await userClient
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user_id)
+        .single();
+      if (profileErr || !profile?.organization_id) {
+        return res.status(403).json({ error: "No organization found." });
+      }
+      organization_id = profile.organization_id;
+    }
 
     // Idempotency check — head:true returns { count } not rows, so read
     // `count` directly. The previous implementation checked `.length > 0`

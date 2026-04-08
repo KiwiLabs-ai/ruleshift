@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -28,17 +30,46 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(true);
   const scanFired = useRef(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Fire-and-forget first scan
+  // Fire the first scan + seed sample data. Not awaited — the modal should
+  // render immediately — but errors are logged and a subtle toast surfaces
+  // if either call fails, so silent setup failures don't hide broken state.
   useEffect(() => {
     if (scanFired.current || !orgId) return;
     scanFired.current = true;
-    supabase.functions
-      .invoke("monitor-sources", { body: { org_id: orgId } })
-      .catch(() => {});
-    supabase.functions
-      .invoke("seed-sample-data", { body: { organization_id: orgId, user_id: user?.id } })
-      .catch(() => {});
+
+    apiCall("monitor-sources", { org_id: orgId }).then(({ error }) => {
+      if (error) {
+        console.error("[welcome] monitor-sources failed:", error);
+        toast({
+          title: "First scan couldn't start",
+          description: "We'll retry automatically. If this persists, check your sources page.",
+          variant: "destructive",
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        queryClient.invalidateQueries({ queryKey: ["alerts-page"] });
+      }
+    });
+
+    apiCall("seed-sample-data", {}).then(({ error }) => {
+      if (error) {
+        console.error("[welcome] seed-sample-data failed:", error);
+        toast({
+          title: "Couldn't create sample data",
+          description: "Your dashboard may look empty until your first real brief arrives.",
+          variant: "destructive",
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        queryClient.invalidateQueries({ queryKey: ["alerts-page"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
+      }
+    });
+    // user is intentionally excluded: scanFired ref prevents re-fires
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
 
   // Mark shown in sessionStorage

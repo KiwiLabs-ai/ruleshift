@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiCall } from "@/lib/api";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { StatsCards } from "@/components/dashboard/StatsCards";
@@ -30,6 +31,7 @@ const Dashboard = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showWelcome, setShowWelcome] = useState(() =>
     shouldShowWelcomeModal(searchParams)
   );
@@ -54,26 +56,52 @@ const Dashboard = () => {
     navigate(url.pathname + url.search, { replace: true });
   };
 
-  // Free-tier welcome toast
+  // Free-tier welcome — show the toast and trigger the first scan + sample
+  // data seed. Calls are not awaited so the dashboard renders immediately,
+  // but errors are logged and a destructive toast surfaces if either fails
+  // so setup failures aren't silent.
   useEffect(() => {
-    if (isFreeWelcome && orgId) {
-      toast({
-        title: "Welcome to RuleShift!",
-        description: "You're on the Free plan — upgrade anytime for more sources and features.",
-      });
-      // Fire seed-sample-data for free users
-      supabase.functions
-        .invoke("seed-sample-data", { body: { organization_id: orgId, user_id: undefined } })
-        .catch(() => {});
-      // Fire initial scan
-      supabase.functions
-        .invoke("monitor-sources", { body: { org_id: orgId } })
-        .catch(() => {});
-      // Clear URL param
-      const url = new URL(window.location.href);
-      url.searchParams.delete("welcome");
-      navigate(url.pathname + url.search, { replace: true });
-    }
+    if (!(isFreeWelcome && orgId)) return;
+
+    toast({
+      title: "Welcome to RuleShift!",
+      description: "You're on the Free plan — upgrade anytime for more sources and features.",
+    });
+
+    apiCall("seed-sample-data", {}).then(({ error }) => {
+      if (error) {
+        console.error("[dashboard] seed-sample-data failed:", error);
+        toast({
+          title: "Couldn't create sample data",
+          description: "Your dashboard may look empty until your first real brief arrives.",
+          variant: "destructive",
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
+      }
+    });
+
+    apiCall("monitor-sources", { org_id: orgId }).then(({ error }) => {
+      if (error) {
+        console.error("[dashboard] monitor-sources failed:", error);
+        toast({
+          title: "First scan couldn't start",
+          description: "We'll retry automatically. Check the Sources page if this persists.",
+          variant: "destructive",
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["alerts"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
+      }
+    });
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("welcome");
+    navigate(url.pathname + url.search, { replace: true });
+    // toast / navigate / queryClient are stable singletons — omitting them
+    // intentionally so this effect only re-runs when the welcome state flips
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFreeWelcome, orgId]);
 
   const loading = orgLoading;
