@@ -77,7 +77,10 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
     sessionStorage.setItem(SESSION_KEY, "true");
   }, []);
 
-  // Subscription info
+  // Subscription info. PGRST116 ("no rows") is expected for free-tier users
+  // who don't have a subscription row yet — treat it as "no subscription"
+  // and render the Free plan copy. Anything else is a real error that we
+  // log so future regressions are visible.
   const { data: subData } = useQuery({
     queryKey: ["welcome-subscription", orgId],
     enabled: !!orgId,
@@ -86,14 +89,18 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
         .from("subscriptions")
         .select("product_id, status")
         .eq("organization_id", orgId)
-        .single();
-      if (error) return null;
+        .maybeSingle();
+      if (error) {
+        console.error("[welcome] subscription fetch failed:", error);
+        return null;
+      }
       return data;
     },
     staleTime: Infinity,
   });
 
-  // Source count
+  // Source count — same pattern: log errors, default to 0 so the modal
+  // still renders rather than hanging.
   const { data: sourceCount } = useQuery({
     queryKey: ["welcome-source-count", orgId],
     enabled: !!orgId,
@@ -102,13 +109,16 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
         .from("organization_sources")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId);
-      if (error) return 0;
+      if (error) {
+        console.error("[welcome] source-count fetch failed:", error);
+        return 0;
+      }
       return count ?? 0;
     },
     staleTime: Infinity,
   });
 
-  // Notification prefs
+  // Notification prefs — a missing row is expected for new users.
   const { data: notifPrefs } = useQuery({
     queryKey: ["welcome-notif-prefs", user?.id],
     enabled: !!user,
@@ -117,8 +127,11 @@ export function WelcomeModal({ orgId, onDismiss }: WelcomeModalProps) {
         .from("notification_preferences")
         .select("email_enabled, digest_frequency")
         .eq("user_id", user!.id)
-        .single();
-      if (error) return null;
+        .maybeSingle();
+      if (error) {
+        console.error("[welcome] notification-preferences fetch failed:", error);
+        return null;
+      }
       return data;
     },
     staleTime: Infinity,

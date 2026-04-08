@@ -9,6 +9,7 @@ import { ArchiveFilterSidebar } from "@/components/archive/ArchiveFilterSidebar"
 import { ArchiveBriefCard } from "@/components/archive/ArchiveBriefCard";
 import { TrendView } from "@/components/archive/TrendView";
 import { useArchiveData } from "@/hooks/use-archive-data";
+import { useToast } from "@/hooks/use-toast";
 
 const ArchivePage = () => {
   const {
@@ -26,6 +27,7 @@ const ArchivePage = () => {
     trendData,
   } = useArchiveData();
 
+  const { toast } = useToast();
   const [searchInput, setSearchInput] = useState("");
 
   const handleSearch = (e: React.FormEvent) => {
@@ -39,27 +41,46 @@ const ArchivePage = () => {
   };
 
   const handleExportCSV = () => {
-    if (briefs.length === 0) return;
-    const headers = ["Title", "Source", "Severity", "Date", "Summary", "Tags"];
-    const rows = briefs.map((b: any) => {
-      const alert = Array.isArray(b.alerts) ? b.alerts?.[0] : b.alerts;
-      return [
-        `"${(b.title ?? "").replace(/"/g, '""')}"`,
-        b.source_name,
-        alert?.severity ?? "informational",
-        new Date(b.created_at).toLocaleDateString(),
-        `"${(b.summary ?? "").replace(/"/g, '""')}"`,
-        `"${(b.tags ?? []).join(", ")}"`,
-      ].join(",");
-    });
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `compliance-archive-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (briefs.length === 0) {
+      toast({
+        title: "Nothing to export",
+        description: "There are no briefs matching your current filters.",
+      });
+      return;
+    }
+    try {
+      const headers = ["Title", "Source", "Severity", "Date", "Summary", "Tags"];
+      const rows = briefs.map((b: any) => {
+        const alert = Array.isArray(b.alerts) ? b.alerts?.[0] : b.alerts;
+        return [
+          `"${(b.title ?? "").replace(/"/g, '""')}"`,
+          b.source_name,
+          alert?.severity ?? "informational",
+          new Date(b.created_at).toLocaleDateString(),
+          `"${(b.summary ?? "").replace(/"/g, '""')}"`,
+          `"${(b.tags ?? []).join(", ")}"`,
+        ].join(",");
+      });
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `compliance-archive-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Archive exported",
+        description: `Exported ${briefs.length} brief${briefs.length === 1 ? "" : "s"} to CSV.`,
+      });
+    } catch (err) {
+      console.error("[archive] CSV export failed:", err);
+      toast({
+        title: "Export failed",
+        description: err instanceof Error ? err.message : "Could not build the CSV file.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

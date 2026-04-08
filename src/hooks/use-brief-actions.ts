@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ActionItem {
   id: string;
@@ -13,6 +14,7 @@ interface ActionItem {
 
 export function useBriefActionItems(briefId: string | undefined, actionCount: number) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const seeded = useRef(false);
 
   const query = useQuery({
@@ -45,8 +47,16 @@ export function useBriefActionItems(briefId: string | undefined, actionCount: nu
     (supabase as any)
       .from("brief_action_items")
       .insert(rows)
-      .then(({ error }) => {
-        if (!error) queryClient.invalidateQueries({ queryKey: ["brief-action-items", briefId] });
+      .then(({ error }: { error: unknown }) => {
+        if (error) {
+          // If seeding fails (e.g. RLS denial, network hiccup) the user sees
+          // an empty checklist. Reset the ref so the next render can retry,
+          // and log the cause instead of swallowing it silently.
+          seeded.current = false;
+          console.error("[brief-actions] seed insert failed:", error);
+          return;
+        }
+        queryClient.invalidateQueries({ queryKey: ["brief-action-items", briefId] });
       });
   }, [briefId, actionCount, query.isLoading, query.data, queryClient]);
 
@@ -65,6 +75,15 @@ export function useBriefActionItems(briefId: string | undefined, actionCount: nu
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["brief-action-items", briefId] });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Could not update action item";
+      console.error("[brief-actions] toggle failed:", err);
+      toast({
+        title: "Couldn't update action",
+        description: message,
+        variant: "destructive",
+      });
     },
   });
 
