@@ -3,7 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
 import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
 import { generateBriefForAlert, classifyChangeSubstantive } from "./_shared/brief-core.js";
-import { PDFParse } from "pdf-parse";
+// pdf-parse@1 ships no type declarations and is CJS; require() via
+// createRequire keeps it out of the esbuild bundling path and avoids the
+// default-export interop issues that show up when using ESM `import`.
+import { createRequire } from "module";
+const pdfParse: (buffer: Uint8Array | Buffer) => Promise<{ text: string }> =
+  createRequire(import.meta.url)("pdf-parse");
 
 // Single-source user calls await generate-brief, which can take up to ~60s
 // for the Anthropic round-trip. Give this function enough budget to cover it.
@@ -244,7 +249,6 @@ export interface SupplementaryDocSummary {
 const MAX_PDF_BYTES = 8 * 1024 * 1024; // 8 MB cap to avoid blowing up memory
 
 async function parsePdfFromUrl(url: string): Promise<string | null> {
-  let parser: PDFParse | undefined;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -268,8 +272,8 @@ async function parsePdfFromUrl(url: string): Promise<string | null> {
       return null;
     }
 
-    parser = new PDFParse({ data: new Uint8Array(arrayBuffer) });
-    const result = await parser.getText();
+    const buffer = Buffer.from(arrayBuffer);
+    const result = await pdfParse(buffer);
     const raw = result?.text ?? "";
     // Normalise whitespace the same way stripHtmlTags does so PDF text and
     // HTML text feel the same to the model and to the diff path.
@@ -281,14 +285,6 @@ async function parsePdfFromUrl(url: string): Promise<string | null> {
   } catch (err) {
     console.warn(`[pdf] parse failed for ${url}:`, (err as Error).message);
     return null;
-  } finally {
-    if (parser) {
-      try {
-        await parser.destroy();
-      } catch {
-        /* ignore */
-      }
-    }
   }
 }
 
