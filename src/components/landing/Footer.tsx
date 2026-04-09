@@ -56,7 +56,7 @@ const Footer = () => {
           <div className="grid gap-10 sm:grid-cols-2 md:grid-cols-4">
             {/* Brand */}
             <div>
-              <Logo size="sm" />
+              <Logo size="sm" className="text-primary-foreground" />
               <p className="mt-3 text-sm text-primary-foreground/50">
                 Policy intelligence for modern businesses.
               </p>

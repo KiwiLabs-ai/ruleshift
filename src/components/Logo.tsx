@@ -23,7 +23,7 @@ const Logo = ({ className = "", size = "md", showText = true }: LogoProps) => {
     <div className={`flex items-center gap-2 ${className}`}>
       <img src={iconSrc} alt="RuleShift" className={`${iconSizes[size]} w-auto`} />
       {showText && (
-        <span className={`font-bold text-primary-foreground ${textSizes[size]}`}>
+        <span className={`font-bold ${textSizes[size]}`}>
           RuleShift
         </span>
       )}
