@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
     const user = userData.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { email: user.email });
+    logStep("User authenticated", { user_id: user.id });
 
     const rlIdentifier = user.id || `ip:${getClientIp(req)}`;
     const rl = await checkRateLimit(rlIdentifier, "check-subscription", 30, 3600);

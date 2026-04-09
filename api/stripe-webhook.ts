@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = userData?.users?.find((u) => u.email === session.customer_email);
 
         if (!user) {
-          console.error(`[STRIPE-WEBHOOK] No user found for email ${session.customer_email}`);
+          console.error(`[STRIPE-WEBHOOK] No user found for checkout session ${session.id}`);
           break;
         }
 

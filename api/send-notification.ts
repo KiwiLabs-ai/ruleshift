@@ -296,7 +296,11 @@ export default async function handler(
       return res.status(404).json({ error: "Brief not found" });
     }
 
-    const severity = brief.alerts?.[0]?.severity || "informational";
+    // briefs.alert_id is a scalar FK so the `alerts(severity)` join returns
+    // an object, not an array. The old `?.[0]` was always undefined and
+    // fell back to "informational", defeating severity thresholding for
+    // every realtime alert + every digest_queue row inserted below.
+    const severity = brief.alerts?.severity || "informational";
 
     // Fetch accepted organization members
     const { data: members, error: membersError } = await supabase

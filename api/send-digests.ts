@@ -277,10 +277,13 @@ export default async function handler(
           continue;
         }
 
-        // Fetch unsent digest items
+        // Fetch unsent digest items. digest_queue has its own severity
+        // column (populated by send-notification.ts when the row is queued)
+        // so no join to alerts is needed — the old `alerts(severity)` select
+        // was dead weight (digest_queue has no alert_id FK).
         const { data: queueItems, error: queueError } = await supabaseAdmin
           .from("digest_queue")
-          .select("*, briefs(title, source_name), alerts(severity)")
+          .select("*, briefs(title, source_name)")
           .eq("user_id", user.id)
           .eq("organization_id", membership.organization_id)
           .eq("sent", false)
@@ -316,7 +319,7 @@ export default async function handler(
         });
 
         if (result.error) {
-          console.error(`Failed to send digest to ${user.email}:`, result.error);
+          console.error(`Failed to send digest to user ${user.id}:`, result.error);
           continue;
         }
 

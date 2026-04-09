@@ -29,7 +29,16 @@ const Login = () => {
     });
     setLoading(false);
     if (error) {
-      toast({ variant: "destructive", title: "Login failed", description: error.message });
+      // Log the real reason for debugging, but show a generic message to
+      // the user. Surfacing Supabase's "Invalid login credentials" vs
+      // "Email not confirmed" lets an attacker distinguish registered
+      // from unregistered emails (account enumeration).
+      console.error("[login] signInWithPassword failed:", error.message);
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: "Invalid email or password.",
+      });
     }
   };
 
