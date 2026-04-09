@@ -20,7 +20,7 @@ interface CustomSource {
   selector: string;
 }
 
-const PLAN_SOURCE_LIMIT = 25; // Professional plan default for onboarding guidance
+const FREE_TRIAL_SOURCE_LIMIT = 5; // Free trial / no subscription default
 
 const SourcesStep = () => {
   const { profile, loading, user } = useOnboardingGuard();
@@ -514,11 +514,11 @@ const SourcesStep = () => {
             You're monitoring <span className="text-secondary font-bold">{totalSources}</span> sources
           </div>
 
-          {totalSources > PLAN_SOURCE_LIMIT && (
+          {totalSources > FREE_TRIAL_SOURCE_LIMIT && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-700 dark:bg-amber-950/40">
               <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <p className="text-amber-900 dark:text-amber-200">
-                You've selected <strong>{totalSources}</strong> sources. The Professional plan includes up to {PLAN_SOURCE_LIMIT}. You may need to upgrade or reduce your selection.
+                You've selected <strong>{totalSources}</strong> sources. Your current plan allows up to {FREE_TRIAL_SOURCE_LIMIT}. Please reduce your selection or upgrade after onboarding.
               </p>
             </div>
           )}
@@ -526,7 +526,7 @@ const SourcesStep = () => {
 
         <Button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || totalSources > FREE_TRIAL_SOURCE_LIMIT}
           className="mt-6 w-full bg-secondary text-secondary-foreground hover:bg-teal-light"
         >
           {submitting ? "Saving…" : "Continue"}
