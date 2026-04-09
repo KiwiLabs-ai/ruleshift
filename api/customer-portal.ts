@@ -1,6 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { checkRateLimit, rateLimitJson } from "./_shared/rate-limit.js";
+
+function getClientIp(req: VercelRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") return forwarded.split(",")[0].trim();
+  if (Array.isArray(forwarded) && forwarded.length > 0) return forwarded[0];
+  return req.socket?.remoteAddress || "unknown";
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
@@ -41,6 +49,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const user = userData.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { user_id: user.id });
+
+    // Rate limit portal redirects: each call hits customers.list and
+    // billingPortal.sessions.create on Stripe, so repeated clicks or
+    // automation would DoS our Stripe API quota.
+    const rlIdentifier = user.id || `ip:${getClientIp(req)}`;
+    const rl = await checkRateLimit(rlIdentifier, "customer-portal", 20, 3600);
+    if (!rl.allowed) {
+      const rlInfo = rateLimitJson(rl.reset_at);
+      return res.setHeader("Retry-After", rlInfo.retryAfter).status(429).json(rlInfo.body);
+    }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" as any });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });

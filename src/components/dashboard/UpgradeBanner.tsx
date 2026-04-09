@@ -21,11 +21,14 @@ export function UpgradeBanner() {
     queryKey: ["has-active-subscription", user?.id],
     enabled: !!user,
     queryFn: async () => {
+      // maybeSingle so a missing profile row (fresh signup) just returns
+      // "no subscription" instead of throwing PGRST116 and breaking the
+      // whole dashboard upgrade banner.
       const { data: profile } = await supabase
         .from("profiles")
         .select("organization_id")
         .eq("user_id", user!.id)
-        .single();
+        .maybeSingle();
 
       if (!profile?.organization_id) return false;
 
@@ -33,7 +36,7 @@ export function UpgradeBanner() {
         .from("subscriptions")
         .select("status")
         .eq("organization_id", profile.organization_id)
-        .single();
+        .maybeSingle();
 
       return sub && ["active", "trialing"].includes(sub.status);
     },

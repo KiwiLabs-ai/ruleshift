@@ -49,7 +49,7 @@ const NotificationsStep = () => {
       .from("notification_preferences")
       .select("*")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setExistingPrefsId(data.id);

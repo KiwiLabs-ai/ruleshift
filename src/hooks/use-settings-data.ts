@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "./use-dashboard-data";
 
 export function useProfileData() {
@@ -10,11 +11,14 @@ export function useProfileData() {
     queryKey: ["profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
+      // maybeSingle: for a freshly-created user the trigger-created
+      // profile row may not exist yet; .single() would throw PGRST116
+      // and push the query into error state.
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", user!.id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -31,7 +35,7 @@ export function useOrganizationData() {
         .from("organizations")
         .select("*")
         .eq("id", orgId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -55,9 +59,22 @@ export function useNotificationPrefs() {
   });
 }
 
+function buildMutationErrorHandler(toast: ReturnType<typeof useToast>["toast"], label: string) {
+  return (err: unknown) => {
+    const message = err instanceof Error ? err.message : "Please try again.";
+    console.error(`[settings] ${label} failed:`, err);
+    toast({
+      title: `Couldn't ${label}`,
+      description: message,
+      variant: "destructive",
+    });
+  };
+}
+
 export function useUpdateProfile() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: async (updates: { full_name?: string }) => {
       const { error } = await supabase
@@ -66,13 +83,18 @@ export function useUpdateProfile() {
         .eq("user_id", user!.id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast({ title: "Profile updated" });
+    },
+    onError: buildMutationErrorHandler(toast, "update profile"),
   });
 }
 
 export function useUpdateOrganization() {
   const { data: orgId } = useOrganizationId();
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: async (updates: { name?: string; industry?: string; company_size?: string; compliance_concern?: string }) => {
       const { error } = await supabase
@@ -81,13 +103,18 @@ export function useUpdateOrganization() {
         .eq("id", orgId!);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["organization"] });
+      toast({ title: "Organization updated" });
+    },
+    onError: buildMutationErrorHandler(toast, "update organization"),
   });
 }
 
 export function useUpdateNotificationPrefs() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { toast } = useToast();
   return useMutation({
     mutationFn: async (updates: {
       email_enabled?: boolean;
@@ -118,7 +145,11 @@ export function useUpdateNotificationPrefs() {
         if (error) throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-prefs"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notification-prefs"] });
+      toast({ title: "Notification preferences saved" });
+    },
+    onError: buildMutationErrorHandler(toast, "save notification preferences"),
   });
 }
 

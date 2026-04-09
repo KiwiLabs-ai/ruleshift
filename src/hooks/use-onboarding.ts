@@ -25,11 +25,16 @@ export function useOnboardingGuard() {
     }
 
     const fetchProfile = async () => {
-      const { data } = await supabase
+      // maybeSingle: if the profile trigger hasn't fired yet for a just-
+      // created user, .single() would throw and stall onboarding.
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+      if (error) {
+        console.error("[use-onboarding] profile fetch failed:", error);
+      }
       setProfile(data);
       setLoading(false);
     };

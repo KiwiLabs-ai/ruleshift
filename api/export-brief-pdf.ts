@@ -8,6 +8,16 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": process.env.APP_URL || "https://ruleshift.ai",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
+function setCors(res: VercelResponse) {
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
+}
+
 // Color definitions
 const NAVY = rgb(0.102, 0.122, 0.239);
 const TEAL = rgb(0.176, 0.831, 0.749);
@@ -382,6 +392,8 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

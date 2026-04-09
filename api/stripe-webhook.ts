@@ -35,7 +35,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).send("Webhook signature verification failed");
   }
 
-  console.log(`[STRIPE-WEBHOOK] Received event: ${event.type}`);
+  console.log(`[STRIPE-WEBHOOK] Received event: ${event.type} (${event.id})`);
+
+  // Idempotency — Stripe replays events on 5xx. Insert the event id into
+  // stripe_events; if it already exists, short-circuit before any side
+  // effects run. Uses the unique primary key to enforce the constraint
+  // atomically.
+  const { error: dedupeErr } = await supabaseAdmin
+    .from("stripe_events")
+    .insert({ id: event.id, event_type: event.type });
+  if (dedupeErr) {
+    // Unique violation means we already processed this event. Return 200
+    // so Stripe stops replaying, and log for visibility.
+    if ((dedupeErr as any).code === "23505") {
+      console.log(`[STRIPE-WEBHOOK] Event ${event.id} already processed, skipping`);
+      return res.status(200).json({ received: true, deduped: true });
+    }
+    // Any other error (network, RLS) — still attempt to process the
+    // event so we don't lose it. Log for alerting.
+    console.error(`[STRIPE-WEBHOOK] stripe_events insert failed:`, dedupeErr);
+  }
+
+  // Helper: look up the Supabase user for a session. Prefer
+  // client_reference_id / metadata (set by create-checkout), fall back
+  // to an email-based lookup only if both are missing for backward
+  // compatibility with older sessions.
+  async function resolveUserForSession(
+    session: Stripe.Checkout.Session
+  ): Promise<{ id: string } | null> {
+    const explicitId =
+      session.client_reference_id ??
+      (session.metadata && (session.metadata as any).supabase_user_id);
+    if (explicitId) {
+      return { id: explicitId as string };
+    }
+    if (!session.customer_email) return null;
+    const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+    const match = userData?.users?.find((u) => u.email === session.customer_email);
+    return match ? { id: match.id } : null;
+  }
 
   try {
     switch (event.type) {
@@ -43,15 +81,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const session = event.data.object as Stripe.Checkout.Session;
         console.log(`[STRIPE-WEBHOOK] Processing checkout.session.completed for session ${session.id}`);
 
-        if (!session.subscription || !session.customer_email) {
-          console.log("[STRIPE-WEBHOOK] No subscription or customer_email on session, skipping");
+        if (!session.subscription) {
+          console.log("[STRIPE-WEBHOOK] No subscription on session, skipping");
           break;
         }
 
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
 
-        const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-        const user = userData?.users?.find((u) => u.email === session.customer_email);
+        const user = await resolveUserForSession(session);
 
         if (!user) {
           console.error(`[STRIPE-WEBHOOK] No user found for checkout session ${session.id}`);

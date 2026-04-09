@@ -67,7 +67,7 @@ const SourcesStep = () => {
       .from("organizations")
       .select("industry, compliance_concern")
       .eq("id", orgId)
-      .single();
+      .maybeSingle();
     const industry = org?.industry || "Other";
     setOrgIndustry(industry);
     setOrgConcern(org?.compliance_concern || "");
