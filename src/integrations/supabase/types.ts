@@ -186,6 +186,7 @@ export type Database = {
           alert_id: string | null
           content: string | null
           created_at: string
+          deadline_date: string | null
           id: string
           organization_id: string
           source_name: string
@@ -199,6 +200,7 @@ export type Database = {
           alert_id?: string | null
           content?: string | null
           created_at?: string
+          deadline_date?: string | null
           id?: string
           organization_id: string
           source_name: string
@@ -212,6 +214,7 @@ export type Database = {
           alert_id?: string | null
           content?: string | null
           created_at?: string
+          deadline_date?: string | null
           id?: string
           organization_id?: string
           source_name?: string

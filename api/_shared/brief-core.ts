@@ -31,6 +31,13 @@ should take. Use "1.", "2.", "3." etc. — one action per line, no sub-bullets.
 The most relevant date (compliance, effective, comment-period close). If no
 date is mentioned, write "Not specified".
 
+After the deadline prose, on a NEW line by itself, write EXACTLY:
+DEADLINE_ISO: YYYY-MM-DD
+using the most relevant date in ISO 8601 format. If no concrete date can be
+determined (relative dates like "90 days from publication" count as no
+concrete date), write:
+DEADLINE_ISO: none
+
 ## Business Impact
 2-4 sentences on operational, financial, or reputational impact.
 
@@ -38,7 +45,8 @@ Rules:
 - Use the exact section headers above. Do not add extra sections or omit any.
 - Do not wrap the brief in a top-level title or preamble.
 - Do not use bold (**...**) inside section bodies.
-- Keep the entire brief under 500 words.`;
+- Keep the entire brief under 500 words.
+- The DEADLINE_ISO line is metadata — always include it after the Deadline section body.`;
 
 const DIFF_SYSTEM_PROMPT = `You are a policy analyst AI writing impact briefs for decision makers.
 
@@ -77,6 +85,13 @@ If there are no substantive changes, write "1. No action required."
 The most relevant date (compliance, effective, comment-period close). If no
 date is mentioned, write "Not specified".
 
+After the deadline prose, on a NEW line by itself, write EXACTLY:
+DEADLINE_ISO: YYYY-MM-DD
+using the most relevant date in ISO 8601 format. If no concrete date can be
+determined (relative dates like "90 days from publication" count as no
+concrete date), write:
+DEADLINE_ISO: none
+
 ## Business Impact
 2-4 sentences on operational, financial, or reputational impact. If only
 cosmetic changes, write "None — change is not substantive."
@@ -85,12 +100,45 @@ Rules:
 - Use the exact section headers above. Do not add extra sections or omit any.
 - Do not wrap the brief in a top-level title or preamble.
 - Do not use bold (**...**) inside section bodies.
-- Keep the entire brief under 500 words.`;
+- Keep the entire brief under 500 words.
+- The DEADLINE_ISO line is metadata — always include it after the Deadline section body.`;
 
 export interface SupplementaryDoc {
   url: string;
   text: string;
   type: "html" | "pdf" | "pdf-skipped" | "fetch-failed";
+}
+
+/**
+ * Extract a structured ISO date from the DEADLINE_ISO: line in brief text,
+ * then strip the metadata line from the content so it doesn't render in the UI.
+ */
+function extractDeadlineDate(briefText: string): { content: string; deadlineDate: string | null } {
+  const match = briefText.match(/^DEADLINE_ISO:\s*(\S+)\s*$/m);
+  if (!match) {
+    return { content: briefText, deadlineDate: null };
+  }
+
+  const raw = match[1];
+  // Strip the metadata line from rendered content
+  const content = briefText.replace(/^DEADLINE_ISO:\s*\S+\s*$/m, "").replace(/\n{3,}/g, "\n\n");
+
+  if (raw === "none" || raw === "None") {
+    return { content, deadlineDate: null };
+  }
+
+  // Validate ISO date format
+  const dateMatch = raw.match(/^\d{4}-\d{2}-\d{2}$/);
+  if (!dateMatch) {
+    return { content, deadlineDate: null };
+  }
+
+  const parsed = new Date(raw + "T00:00:00Z");
+  if (isNaN(parsed.getTime())) {
+    return { content, deadlineDate: null };
+  }
+
+  return { content, deadlineDate: raw };
 }
 
 export interface GenerateBriefParams {
@@ -347,10 +395,13 @@ export async function generateBriefForAlert(
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 
-  const briefText = response.content[0].type === "text" ? response.content[0].text : "";
-  if (!briefText) {
+  const rawBriefText = response.content[0].type === "text" ? response.content[0].text : "";
+  if (!rawBriefText) {
     throw new Error("No brief text generated");
   }
+
+  // Extract structured deadline and strip the metadata line from content.
+  const { content: briefText, deadlineDate } = extractDeadlineDate(rawBriefText);
 
   // Build a short summary (first paragraph or first 300 chars).
   const firstParagraph = briefText.split(/\n\s*\n/)[0] ?? briefText;
@@ -371,6 +422,7 @@ export async function generateBriefForAlert(
         source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
         summary,
         content: briefText,
+        deadline_date: deadlineDate,
       })
       .eq("id", alert.brief_id);
 
@@ -388,6 +440,7 @@ export async function generateBriefForAlert(
         source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
         summary,
         content: briefText,
+        deadline_date: deadlineDate,
       })
       .select("id")
       .single();

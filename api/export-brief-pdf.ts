@@ -302,7 +302,7 @@ async function generatePDF(brief: any): Promise<Uint8Array> {
   }
 
   // Deadline section (if present)
-  if (brief.deadline) {
+  if (brief.deadline_date) {
     ensureSpace(50);
 
     page.drawRectangle({
@@ -321,7 +321,7 @@ async function generatePDF(brief: any): Promise<Uint8Array> {
       color: WHITE,
     });
 
-    page.drawText(new Date(brief.deadline).toLocaleDateString(), {
+    page.drawText(new Date(brief.deadline_date + "T00:00:00").toLocaleDateString(), {
       x: marginX + 12,
       y: yPosition - 30,
       size: 11,

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Bell, Archive, Radar, Settings, LogOut, User, CreditCard, Search, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Bell, Archive, Calendar, Radar, Settings, LogOut, User, CreditCard, Search, Sun, Moon } from "lucide-react";
 import Logo from "@/components/Logo";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +35,7 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Alerts", url: "/alerts", icon: Bell },
   { title: "Briefs Archive", url: "/archive", icon: Archive },
+  { title: "Deadlines", url: "/deadlines", icon: Calendar },
   { title: "Sources", url: "/sources", icon: Radar },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

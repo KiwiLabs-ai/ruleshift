@@ -23,6 +23,7 @@ import NotificationsStep from "./pages/onboarding/NotificationsStep";
 import PlanStep from "./pages/onboarding/PlanStep";
 import Alerts from "./pages/Alerts";
 import BriefDetail from "./pages/BriefDetail";
+import DeadlinesPage from "./pages/Deadlines";
 import NotFound from "./pages/NotFound";
 import VerifyEmail from "./pages/VerifyEmail";
 import AcceptInvite from "./pages/AcceptInvite";
@@ -74,6 +75,10 @@ const App = () => (
               <Route
                 path="/sources"
                 element={<ProtectedRoute><SourcesPage /></ProtectedRoute>}
+              />
+              <Route
+                path="/deadlines"
+                element={<ProtectedRoute><DeadlinesPage /></ProtectedRoute>}
               />
               <Route
                 path="/settings"

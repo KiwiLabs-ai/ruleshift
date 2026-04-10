@@ -186,13 +186,11 @@ const BriefDetail = () => {
   const completedActions = checkedActions.size;
 
   let deadlineUrgent = false;
-  if (sections.deadline) {
-    try {
-      const deadlineDate = new Date(sections.deadline);
-      if (!isNaN(deadlineDate.getTime())) {
-        deadlineUrgent = differenceInDays(deadlineDate, new Date()) <= 30;
-      }
-    } catch {}
+  if (brief.deadline_date) {
+    const deadlineDate = new Date(brief.deadline_date + "T00:00:00");
+    if (!isNaN(deadlineDate.getTime())) {
+      deadlineUrgent = differenceInDays(deadlineDate, new Date()) <= 30;
+    }
   }
 
   return (

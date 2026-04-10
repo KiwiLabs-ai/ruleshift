@@ -11,6 +11,10 @@
     {
       "path": "/api/send-digests",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/send-deadline-reminders",
+      "schedule": "0 8 * * *"
     }
   ]
 }

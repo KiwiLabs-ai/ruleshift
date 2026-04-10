@@ -26,6 +26,8 @@ import {
 } from "@/hooks/use-dashboard-data";
 import { useHealthData } from "@/hooks/use-health-data";
 import { useActivityChart } from "@/hooks/use-activity-chart";
+import { useUpcomingDeadlines } from "@/hooks/use-deadlines-data";
+import { UpcomingDeadlines } from "@/components/dashboard/UpcomingDeadlines";
 
 const Dashboard = () => {
   const [searchParams] = useSearchParams();
@@ -44,6 +46,7 @@ const Dashboard = () => {
   const { data: events, isLoading: evtLoading } = useActivityEvents(orgId);
   const { data: healthData, isLoading: healthLoading } = useHealthData(orgId);
   const { data: chartData, isLoading: chartLoading } = useActivityChart(orgId);
+  const { data: deadlines, isLoading: deadlinesLoading } = useUpcomingDeadlines(orgId);
 
   const stableRefetch = useCallback(() => { refetchAlerts(); }, [refetchAlerts]);
   useRealtimeAlerts(orgId, stableRefetch);
@@ -138,6 +141,8 @@ const Dashboard = () => {
         {orgId && (
           <MonitoringHealth data={healthData} loading={healthLoading} orgId={orgId} />
         )}
+
+        <UpcomingDeadlines deadlines={deadlines ?? []} loading={deadlinesLoading} />
 
         {showEmptyState ? (
           <div className="flex justify-center py-8">
