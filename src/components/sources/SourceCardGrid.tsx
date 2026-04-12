@@ -105,9 +105,8 @@ export function SourceCardGrid({ watchlist, onRemove, onAddClick, onCheck, onRet
 
               {/* Source URL */}
               {sourceUrl && (
-                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-primary hover:underline truncate max-w-full">
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{sourceUrl.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center text-muted-foreground hover:text-primary transition-colors" title={sourceUrl}>
+                  <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               )}
 

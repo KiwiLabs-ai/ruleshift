@@ -53,12 +53,11 @@ export function ArchiveBriefCard({ brief, viewMode, relevance }: ArchiveBriefCar
             {brief.actionProgress.completed}/{brief.actionProgress.total} actions
           </span>
         )}
-        {brief.source_url ? (
-          <a href={brief.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline shrink-0 w-20 text-right">
-            {brief.source_name} <ExternalLink className="h-2.5 w-2.5" />
+        <span className="text-xs text-muted-foreground shrink-0 text-right">{brief.source_name}</span>
+        {brief.source_url && (
+          <a href={brief.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="shrink-0 text-muted-foreground hover:text-primary transition-colors" title="View original source">
+            <ExternalLink className="h-3 w-3" />
           </a>
-        ) : (
-          <span className="text-xs text-muted-foreground shrink-0 w-20 text-right">{brief.source_name}</span>
         )}
         <span className="text-xs text-muted-foreground shrink-0 w-24 text-right">
           {new Date(brief.created_at).toLocaleDateString()}
@@ -98,12 +97,11 @@ export function ArchiveBriefCard({ brief, viewMode, relevance }: ArchiveBriefCar
         {brief.summary || "No summary available"}
       </p>
       <div className="mt-3 flex items-center justify-between gap-2">
-        {brief.source_url ? (
-          <a href={brief.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline">
-            {brief.source_name} <ExternalLink className="h-2.5 w-2.5" />
+        <span className="text-[11px] text-muted-foreground">{brief.source_name}</span>
+        {brief.source_url && (
+          <a href={brief.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition-colors" title="View original source">
+            <ExternalLink className="h-3 w-3" />
           </a>
-        ) : (
-          <span className="text-[11px] text-muted-foreground">{brief.source_name}</span>
         )}
         <div className="flex items-center gap-2">
           {brief.actionProgress && brief.actionProgress.total > 0 && (

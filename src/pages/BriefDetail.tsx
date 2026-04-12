@@ -208,12 +208,11 @@ const BriefDetail = () => {
             {isActioned && (
               <Badge className="bg-green-100 text-green-800 border-green-300">✓ Actioned</Badge>
             )}
-            {brief.source_url ? (
-              <a href={brief.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                {brief.source_name} <ExternalLink className="h-3 w-3" />
+            <span className="text-sm text-muted-foreground">{brief.source_name}</span>
+            {brief.source_url && (
+              <a href={brief.source_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors" title="View original source">
+                <ExternalLink className="h-3.5 w-3.5" />
               </a>
-            ) : (
-              <span className="text-sm text-muted-foreground">{brief.source_name}</span>
             )}
             <span className="text-sm text-muted-foreground">·</span>
             <span className="text-sm text-muted-foreground">

@@ -60,12 +60,11 @@ export function AlertCard({ alert, onMarkRead, onClick }: AlertCardProps) {
                     <CheckCircle2 className="h-3 w-3" /> Actioned
                   </Badge>
                 )}
-              {alert.source_url ? (
-                <a href={alert.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline">
-                  {alert.source_name} <ExternalLink className="h-2.5 w-2.5" />
+              <span className="text-xs text-muted-foreground">{alert.source_name}</span>
+              {alert.source_url && (
+                <a href={alert.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition-colors" title="View original source">
+                  <ExternalLink className="h-3 w-3" />
                 </a>
-              ) : (
-                <span className="text-xs text-muted-foreground">{alert.source_name}</span>
               )}
               <span className="text-xs text-muted-foreground" title={new Date(alert.created_at).toLocaleString()}>
                 {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
