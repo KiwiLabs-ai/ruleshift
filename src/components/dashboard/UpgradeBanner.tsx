@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Sparkles, ArrowRight, X, Clock } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSubscriptionStatus } from "@/hooks/use-settings-data";
 
 const DISMISS_KEY = "ruleshift_upgrade_dismissed_at";
 
 export function UpgradeBanner() {
-  const { user } = useAuth();
   const [dismissed, setDismissed] = useState(() => {
     const ts = localStorage.getItem(DISMISS_KEY);
     if (!ts) return false;
@@ -16,43 +13,19 @@ export function UpgradeBanner() {
     return diff < 7 * 24 * 60 * 60 * 1000;
   });
 
-  const { data: subInfo, isLoading } = useQuery({
-    queryKey: ["has-active-subscription", user?.id],
-    enabled: !!user,
-    queryFn: async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-
-      if (!profile?.organization_id) return { status: "none" as const, currentPeriodEnd: null };
-
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status, current_period_end")
-        .eq("organization_id", profile.organization_id)
-        .maybeSingle();
-
-      return {
-        status: (sub?.status ?? "none") as string,
-        currentPeriodEnd: sub?.current_period_end ?? null,
-      };
-    },
-    staleTime: 60_000,
-  });
+  const { data: sub, isLoading } = useSubscriptionStatus();
 
   if (isLoading) return null;
 
-  const status = subInfo?.status ?? "none";
+  const status = sub?.status ?? "none";
   const isTrialing = status === "trialing";
   const isActive = status === "active";
-  const trialDaysLeft = isTrialing && subInfo?.currentPeriodEnd
-    ? Math.max(0, Math.ceil((new Date(subInfo.currentPeriodEnd).getTime() - Date.now()) / 86_400_000))
+  const trialDaysLeft = isTrialing && sub?.subscription_end
+    ? Math.max(0, Math.ceil((new Date(sub.subscription_end).getTime() - Date.now()) / 86_400_000))
     : null;
 
   // Active subscribers — no banner
-  if (isActive) return null;
+  if (isActive || (sub?.subscribed && !isTrialing)) return null;
 
   // Free users — show upgrade banner (dismissable)
   if (!isTrialing) {
