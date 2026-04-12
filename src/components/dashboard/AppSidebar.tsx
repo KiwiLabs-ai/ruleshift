@@ -1,9 +1,11 @@
-import { LayoutDashboard, Bell, Archive, Calendar, Radar, Settings, LogOut, User, CreditCard, Search, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Bell, Archive, Calendar, Radar, Settings, LogOut, User, CreditCard, Search, Sun, Moon, Clock } from "lucide-react";
 import Logo from "@/components/Logo";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscriptionStatus } from "@/hooks/use-settings-data";
+import { STRIPE_TIERS } from "@/lib/stripe-tiers";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationBell } from "./NotificationBell";
@@ -45,6 +47,17 @@ export function AppSidebar({ unreadCount = 0 }: AppSidebarProps) {
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { data: sub } = useSubscriptionStatus();
+
+  // Resolve plan name from product_id
+  const planName = sub?.product_id
+    ? Object.values(STRIPE_TIERS).find((t) => t.productId === sub.product_id)?.name ?? "Plan"
+    : null;
+
+  const isTrialing = sub?.status === "trialing";
+  const trialDaysLeft = isTrialing && sub?.subscription_end
+    ? Math.max(0, Math.ceil((new Date(sub.subscription_end).getTime() - Date.now()) / 86_400_000))
+    : null;
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "U";
   const displayName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
@@ -149,9 +162,17 @@ export function AppSidebar({ unreadCount = 0 }: AppSidebarProps) {
 
       <SidebarFooter className="p-3 space-y-3">
         <div className="flex items-center justify-between">
-          {!collapsed && (
-            <Badge variant="secondary" className="text-xs">Professional</Badge>
-          )}
+          {!collapsed && isTrialing && trialDaysLeft !== null ? (
+            <button
+              onClick={() => navigate("/settings?tab=billing")}
+              className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-[11px] font-medium text-amber-600 hover:bg-amber-500/20 transition-colors"
+            >
+              <Clock className="h-3 w-3" />
+              {trialDaysLeft === 0 ? "Trial ends today" : `${trialDaysLeft}d left in trial`}
+            </button>
+          ) : !collapsed && planName ? (
+            <Badge variant="secondary" className="text-xs">{planName}</Badge>
+          ) : null}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setIsDark((d) => !d)}
