@@ -170,8 +170,8 @@ export function AppSidebar({ unreadCount = 0 }: AppSidebarProps) {
               <Clock className="h-3 w-3" />
               {trialDaysLeft === 0 ? "Trial ends today" : `${trialDaysLeft}d left in trial`}
             </button>
-          ) : !collapsed && planName ? (
-            <Badge variant="secondary" className="text-xs">{planName}</Badge>
+          ) : !collapsed ? (
+            <Badge variant="secondary" className="text-xs">{planName ?? "Free Trial"}</Badge>
           ) : null}
           <div className="flex items-center gap-1">
             <button
