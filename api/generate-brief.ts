@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // there is already a brief we need to replace when regenerating.
     const { data: alertRow, error: alertLookupErr } = await adminClient
       .from("alerts")
-      .select("id, organization_id, org_source_id, brief_id")
+      .select("id, organization_id, org_source_id, brief_id, source_url")
       .eq("id", alert_id)
       .maybeSingle();
 
@@ -154,6 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         content,
         previousContent,
         sourceNameFallback: source_name,
+        sourceUrl: alertRow.source_url ?? undefined,
       });
       return res.status(200).json({
         success: true,

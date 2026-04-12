@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2, ExternalLink } from "lucide-react";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
@@ -208,7 +208,13 @@ const BriefDetail = () => {
             {isActioned && (
               <Badge className="bg-green-100 text-green-800 border-green-300">✓ Actioned</Badge>
             )}
-            <span className="text-sm text-muted-foreground">{brief.source_name}</span>
+            {brief.source_url ? (
+              <a href={brief.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                {brief.source_name} <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : (
+              <span className="text-sm text-muted-foreground">{brief.source_name}</span>
+            )}
             <span className="text-sm text-muted-foreground">·</span>
             <span className="text-sm text-muted-foreground">
               {new Date(brief.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}

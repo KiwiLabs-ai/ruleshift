@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { Eye, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Eye, ChevronRight, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ interface AlertCardProps {
     title: string;
     severity: string;
     source_name: string;
+    source_url: string | null;
     is_read: boolean;
     created_at: string;
     brief_id: string | null;
@@ -59,7 +60,13 @@ export function AlertCard({ alert, onMarkRead, onClick }: AlertCardProps) {
                     <CheckCircle2 className="h-3 w-3" /> Actioned
                   </Badge>
                 )}
-              <span className="text-xs text-muted-foreground">{alert.source_name}</span>
+              {alert.source_url ? (
+                <a href={alert.source_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline">
+                  {alert.source_name} <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              ) : (
+                <span className="text-xs text-muted-foreground">{alert.source_name}</span>
+              )}
               <span className="text-xs text-muted-foreground" title={new Date(alert.created_at).toLocaleString()}>
                 {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
               </span>

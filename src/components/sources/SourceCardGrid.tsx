@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { Globe, Plus, Trash2, RefreshCw, RotateCcw, AlertTriangle } from "lucide-react";
+import { Globe, Plus, Trash2, RefreshCw, RotateCcw, AlertTriangle, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +52,7 @@ export function SourceCardGrid({ watchlist, onRemove, onAddClick, onCheck, onRet
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {watchlist.map((item) => {
         const name = item.custom_name || item.sources?.name || "Unnamed";
+        const sourceUrl = item.custom_url || item.sources?.url || null;
         const category = item.sources?.source_categories?.name || null;
         const dot = statusDot[item.status] ?? statusDot.active;
         const freq = item.check_frequency || "6h";
@@ -101,6 +102,14 @@ export function SourceCardGrid({ watchlist, onRemove, onAddClick, onCheck, onRet
                   <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{category}</span>
                 ) : null}
               </div>
+
+              {/* Source URL */}
+              {sourceUrl && (
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-primary hover:underline truncate max-w-full">
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{sourceUrl.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                </a>
+              )}
 
               {/* Error message for error status */}
               {isError && item.last_error && (

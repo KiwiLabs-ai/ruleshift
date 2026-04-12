@@ -160,6 +160,7 @@ export interface GenerateBriefParams {
    */
   supplementaryDocs?: SupplementaryDoc[];
   sourceNameFallback?: string;
+  sourceUrl?: string;
 }
 
 export interface GenerateBriefResult {
@@ -300,7 +301,7 @@ function buildDiffPayload(previous: string, current: string): string | null {
 export async function generateBriefForAlert(
   params: GenerateBriefParams
 ): Promise<GenerateBriefResult> {
-  const { adminClient, alertId, organizationId, content, previousContent, supplementaryDocs, sourceNameFallback } = params;
+  const { adminClient, alertId, organizationId, content, previousContent, supplementaryDocs, sourceNameFallback, sourceUrl } = params;
 
   // Look up the alert so we can copy title/source_name onto the brief row,
   // and so we know whether to update an existing brief (regeneration) or
@@ -420,6 +421,7 @@ export async function generateBriefForAlert(
       .update({
         title: alert.title,
         source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
+        source_url: sourceUrl ?? null,
         summary,
         content: briefText,
         deadline_date: deadlineDate,
@@ -438,6 +440,7 @@ export async function generateBriefForAlert(
         alert_id: alertId,
         title: alert.title,
         source_name: alert.source_name ?? sourceNameFallback ?? "Unknown source",
+        source_url: sourceUrl ?? null,
         summary,
         content: briefText,
         deadline_date: deadlineDate,

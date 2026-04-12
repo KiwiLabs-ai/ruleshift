@@ -689,6 +689,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               org_source_id: source.id,
               title: `Change detected: ${sourceName}`,
               source_name: sourceName,
+              source_url: url,
               is_read: false,
             })
             .select("id")
@@ -731,6 +732,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 previousContent: previousContent ?? undefined,
                 supplementaryDocs,
                 sourceNameFallback: sourceName,
+                sourceUrl: url,
               });
             } catch (briefErr) {
               const msg = (briefErr as Error).message ?? String(briefErr);

@@ -56,6 +56,7 @@ export type Database = {
           organization_id: string
           severity: string
           source_name: string
+          source_url: string | null
           title: string
         }
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           organization_id: string
           severity?: string
           source_name: string
+          source_url?: string | null
           title: string
         }
         Update: {
@@ -78,6 +80,7 @@ export type Database = {
           organization_id?: string
           severity?: string
           source_name?: string
+          source_url?: string | null
           title?: string
         }
         Relationships: [
@@ -190,6 +193,7 @@ export type Database = {
           id: string
           organization_id: string
           source_name: string
+          source_url: string | null
           summary: string | null
           tags: string[]
           title: string
@@ -204,6 +208,7 @@ export type Database = {
           id?: string
           organization_id: string
           source_name: string
+          source_url?: string | null
           summary?: string | null
           tags?: string[]
           title: string
@@ -218,6 +223,7 @@ export type Database = {
           id?: string
           organization_id?: string
           source_name?: string
+          source_url?: string | null
           summary?: string | null
           tags?: string[]
           title?: string
