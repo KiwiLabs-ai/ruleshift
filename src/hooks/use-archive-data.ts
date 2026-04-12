@@ -3,6 +3,8 @@ import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api";
 import { useOrganizationId } from "./use-dashboard-data";
+import { useSubscriptionStatus } from "./use-settings-data";
+import { getTierFromProductId, ARCHIVE_RETENTION_DAYS } from "@/lib/tier-features";
 
 export interface ArchiveFilters {
   severities: string[];
@@ -22,13 +24,16 @@ export const defaultArchiveFilters: ArchiveFilters = {
 
 export function useArchiveData() {
   const { data: orgId, isLoading: orgLoading } = useOrganizationId();
+  const { data: sub } = useSubscriptionStatus();
+  const tier = getTierFromProductId(sub?.product_id);
+  const retentionDays = ARCHIVE_RETENTION_DAYS[tier];
   const [filters, setFilters] = useState<ArchiveFilters>(defaultArchiveFilters);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // All briefs (no search)
   const briefsQuery = useQuery({
-    queryKey: ["archive-briefs", orgId, filters],
+    queryKey: ["archive-briefs", orgId, filters, retentionDays],
     enabled: !!orgId && !searchQuery,
     queryFn: async () => {
       let query = supabase
@@ -36,6 +41,12 @@ export function useArchiveData() {
         .select("*, alerts(id, severity, is_read)")
         .eq("organization_id", orgId!)
         .order("created_at", { ascending: false });
+
+      // Enforce archive retention window per tier
+      if (retentionDays !== Infinity) {
+        const cutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString();
+        query = query.gte("created_at", cutoff);
+      }
 
       if (filters.dateFrom) {
         query = query.gte("created_at", filters.dateFrom.toISOString());
@@ -164,5 +175,7 @@ export function useArchiveData() {
     sources: metaQuery.data?.sources ?? [],
     tags: metaQuery.data?.tags ?? [],
     trendData: trendQuery.data ?? [],
+    archiveRestricted: retentionDays !== Infinity,
+    retentionDays,
   };
 }

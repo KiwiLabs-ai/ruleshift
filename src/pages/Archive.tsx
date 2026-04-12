@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, LayoutGrid, List, Download, BarChart3, Archive } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, LayoutGrid, List, Download, BarChart3, Archive, ArrowRight } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ const ArchivePage = () => {
     sources,
     tags,
     trendData,
+    archiveRestricted,
+    retentionDays,
   } = useArchiveData();
 
   const { toast } = useToast();
@@ -93,6 +96,14 @@ const ArchivePage = () => {
             <p className="text-sm text-muted-foreground">
               Search and browse all past impact briefs
             </p>
+            {archiveRestricted && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 text-xs text-amber-600">
+                Showing last {retentionDays} days.
+                <Link to="/settings?tab=billing" className="inline-flex items-center gap-1 font-medium hover:underline">
+                  Upgrade for full archive <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            )}
           </div>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
             <Download className="h-4 w-4" /> Export CSV

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { getOrgTier, clampFrequency } from "./_shared/tier.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -319,11 +320,16 @@ export default async function handler(
 
     const severityOrder = SEVERITY_ORDER[severity];
 
+    // Look up the org's tier once to enforce digest frequency limits
+    const orgTier = await getOrgTier(organization_id);
+
     // Process each member
     for (const member of members || []) {
       const prefs = member.notification_preferences || {};
       const severityThreshold = SEVERITY_ORDER[prefs.severity_threshold || "informational"] || 0;
-      const digestFrequency = prefs.digest_frequency || "realtime";
+      // Clamp to the tier's max allowed frequency (e.g., Basic user who set
+      // "realtime" gets clamped to "weekly")
+      const digestFrequency = clampFrequency(prefs.digest_frequency || "realtime", orgTier);
 
       // Check if severity meets threshold
       if (severityOrder < severityThreshold) {

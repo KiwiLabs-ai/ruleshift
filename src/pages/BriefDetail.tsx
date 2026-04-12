@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Share2, CheckCircle2, Calendar, RefreshCw, FileDown, Loader2, ExternalLink, Lock } from "lucide-react";
+import { useSubscriptionStatus } from "@/hooks/use-settings-data";
+import { getTierFromProductId, HAS_ACTION_ITEMS } from "@/lib/tier-features";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,8 @@ const BriefDetail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { data: sub } = useSubscriptionStatus();
+  const canUseActionItems = HAS_ACTION_ITEMS[getTierFromProductId(sub?.product_id)];
   const { data: brief, isLoading } = useBriefDetail(briefId);
   const [_unusedChecked, _setUnusedChecked] = useState<Set<number>>(new Set());
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -243,48 +247,62 @@ const BriefDetail = () => {
 
           {totalActions > 0 && (
             <BriefSection title="Required Actions">
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    {completedActions} of {totalActions} actions completed
-                  </span>
-                  <span className="text-xs font-medium text-secondary">
-                    {totalActions > 0 ? Math.round((completedActions / totalActions) * 100) : 0}%
-                  </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-secondary transition-all duration-300"
-                    style={{ width: `${totalActions > 0 ? (completedActions / totalActions) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
-
-              <ol className="space-y-2">
-                {sections.actions.map((action, idx) => {
-                  const item = itemMap.get(idx);
-                  const isChecked = checkedActions.has(idx);
-                  return (
-                    <li key={idx} className="flex items-start gap-3 bg-muted/50 rounded-lg p-3">
-                      <Checkbox
-                        checked={isChecked}
-                        onCheckedChange={() => toggleAction(idx)}
-                        className="mt-0.5"
+              {canUseActionItems ? (
+                <>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {completedActions} of {totalActions} actions completed
+                      </span>
+                      <span className="text-xs font-medium text-secondary">
+                        {totalActions > 0 ? Math.round((completedActions / totalActions) * 100) : 0}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-secondary transition-all duration-300"
+                        style={{ width: `${totalActions > 0 ? (completedActions / totalActions) * 100 : 0}%` }}
                       />
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-sm ${isChecked ? "line-through text-muted-foreground/60" : "text-foreground"}`}>
-                          {action}
-                        </span>
-                        {isChecked && item?.completed_at && (
-                          <p className="text-[10px] text-muted-foreground/50 mt-0.5">
-                            Completed {new Date(item.completed_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                    </div>
+                  </div>
+
+                  <ol className="space-y-2">
+                    {sections.actions.map((action, idx) => {
+                      const item = itemMap.get(idx);
+                      const isChecked = checkedActions.has(idx);
+                      return (
+                        <li key={idx} className="flex items-start gap-3 bg-muted/50 rounded-lg p-3">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleAction(idx)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm ${isChecked ? "line-through text-muted-foreground/60" : "text-foreground"}`}>
+                              {action}
+                            </span>
+                            {isChecked && item?.completed_at && (
+                              <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                                Completed {new Date(item.completed_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </>
+              ) : (
+                <div className="rounded-lg border border-dashed border-muted-foreground/20 p-4 text-center">
+                  <Lock className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Action item tracking is available on Professional and Enterprise plans.
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-3 gap-1.5" asChild>
+                    <a href="/settings?tab=billing">Upgrade to unlock</a>
+                  </Button>
+                </div>
+              )}
             </BriefSection>
           )}
 

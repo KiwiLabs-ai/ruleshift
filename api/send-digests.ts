@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { getOrgTier, clampFrequency } from "./_shared/tier.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -260,7 +261,10 @@ export default async function handler(
     for (const user of users || []) {
       for (const membership of user.organization_members || []) {
         const prefs = membership.notification_preferences || {};
-        const digestFrequency = prefs.digest_frequency;
+
+        // Clamp frequency to the org's tier maximum before checking
+        const orgTier = await getOrgTier(membership.organization_id);
+        const digestFrequency = clampFrequency(prefs.digest_frequency || "weekly", orgTier);
 
         // Skip if not a digest preference
         if (digestFrequency !== "daily" && digestFrequency !== "weekly") {

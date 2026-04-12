@@ -8,9 +8,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useNotificationPrefs, useUpdateNotificationPrefs } from "@/hooks/use-settings-data";
+import { useNotificationPrefs, useUpdateNotificationPrefs, useSubscriptionStatus } from "@/hooks/use-settings-data";
 import { useToast } from "@/hooks/use-toast";
-import { Bell } from "lucide-react";
+import { getTierFromProductId, TIER_FREQUENCY_OPTIONS } from "@/lib/tier-features";
+import { Bell, Lock } from "lucide-react";
 
 interface FormSnapshot {
   emailEnabled: boolean;
@@ -25,8 +26,11 @@ const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Sat
 export function NotificationsTab() {
   const { user } = useAuth();
   const { data: prefs, isLoading } = useNotificationPrefs();
+  const { data: sub } = useSubscriptionStatus();
   const updatePrefs = useUpdateNotificationPrefs();
   const { toast } = useToast();
+  const tier = getTierFromProductId(sub?.product_id);
+  const allowedFrequencies = TIER_FREQUENCY_OPTIONS[tier];
 
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [digestFrequency, setDigestFrequency] = useState("daily");
@@ -120,15 +124,25 @@ export function NotificationsTab() {
         <h3 className="font-semibold text-foreground">Digest Frequency</h3>
         <RadioGroup value={digestFrequency} onValueChange={setDigestFrequency} className="mt-3 space-y-2">
           {[
-            { value: "realtime", label: "Real-time alerts" },
-            { value: "daily", label: "Daily digest" },
-            { value: "weekly", label: "Weekly digest" },
-          ].map((opt) => (
-            <div key={opt.value} className="flex items-center gap-2">
-              <RadioGroupItem value={opt.value} id={`s-freq-${opt.value}`} />
-              <Label htmlFor={`s-freq-${opt.value}`} className="cursor-pointer font-normal">{opt.label}</Label>
-            </div>
-          ))}
+            { value: "realtime", label: "Real-time alerts", tier: "Enterprise" },
+            { value: "daily", label: "Daily digest", tier: "Professional" },
+            { value: "weekly", label: "Weekly digest", tier: null },
+          ].map((opt) => {
+            const locked = !allowedFrequencies.includes(opt.value);
+            return (
+              <div key={opt.value} className="flex items-center gap-2">
+                <RadioGroupItem value={opt.value} id={`s-freq-${opt.value}`} disabled={locked} />
+                <Label htmlFor={`s-freq-${opt.value}`} className={`font-normal ${locked ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer"}`}>
+                  {opt.label}
+                </Label>
+                {locked && opt.tier && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Lock className="h-3 w-3" /> {opt.tier}+
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </RadioGroup>
 
         {(digestFrequency === "daily" || digestFrequency === "weekly") && (

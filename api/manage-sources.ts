@@ -11,27 +11,11 @@ function setCors(res: VercelResponse) {
   Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 }
 
-const FALLBACK_PRODUCT_BASIC = "prod_U5aHbRwGTN7xrH";
-const FALLBACK_PRODUCT_PROFESSIONAL = "prod_U5aIsM1EfFuyrj";
-const FALLBACK_PRODUCT_ENTERPRISE = "prod_U5aIAlewBWuFxK";
-
-const TIER_LIMITS: Record<string, number> = {
-  [process.env.STRIPE_PRODUCT_BASIC || FALLBACK_PRODUCT_BASIC]: 10,
-  [process.env.STRIPE_PRODUCT_PROFESSIONAL || FALLBACK_PRODUCT_PROFESSIONAL]: 25,
-  [process.env.STRIPE_PRODUCT_ENTERPRISE || FALLBACK_PRODUCT_ENTERPRISE]: 999,
-};
-const DEFAULT_LIMIT = 5;
+import { getOrgTier, SOURCE_LIMITS } from "./_shared/tier.js";
 
 async function getSourceLimit(orgId: string): Promise<number> {
-  const adminClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  const { data, error } = await adminClient
-    .from("subscriptions")
-    .select("status, product_id")
-    .eq("organization_id", orgId)
-    .single();
-  if (error || !data) return DEFAULT_LIMIT;
-  if (!["active", "trialing"].includes(data.status)) return DEFAULT_LIMIT;
-  return TIER_LIMITS[data.product_id ?? ""] ?? DEFAULT_LIMIT;
+  const tier = await getOrgTier(orgId);
+  return SOURCE_LIMITS[tier];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

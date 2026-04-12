@@ -20,26 +20,11 @@ function setCors(res: VercelResponse) {
 // Tier limits
 // ---------------------------------------------------------------------------
 
-const FALLBACK_PRODUCT_BASIC = "prod_U5aHbRwGTN7xrH";
-const FALLBACK_PRODUCT_PROFESSIONAL = "prod_U5aIsM1EfFuyrj";
-const FALLBACK_PRODUCT_ENTERPRISE = "prod_U5aIAlewBWuFxK";
+import { getOrgTier, MEMBER_LIMITS } from "./_shared/tier.js";
 
-const TIER_MEMBER_LIMITS: Record<string, number> = {
-  [process.env.STRIPE_PRODUCT_BASIC || FALLBACK_PRODUCT_BASIC]: 1,
-  [process.env.STRIPE_PRODUCT_PROFESSIONAL || FALLBACK_PRODUCT_PROFESSIONAL]: 5,
-  [process.env.STRIPE_PRODUCT_ENTERPRISE || FALLBACK_PRODUCT_ENTERPRISE]: 9999,
-};
-const DEFAULT_MEMBER_LIMIT = 1;
-
-async function getMemberLimit(adminClient: SupabaseClient, orgId: string): Promise<number> {
-  const { data } = await adminClient
-    .from("subscriptions")
-    .select("status, product_id")
-    .eq("organization_id", orgId)
-    .maybeSingle();
-  if (!data) return DEFAULT_MEMBER_LIMIT;
-  if (!["active", "trialing"].includes(data.status)) return DEFAULT_MEMBER_LIMIT;
-  return TIER_MEMBER_LIMITS[data.product_id ?? ""] ?? DEFAULT_MEMBER_LIMIT;
+async function getMemberLimit(_adminClient: SupabaseClient, orgId: string): Promise<number> {
+  const tier = await getOrgTier(orgId);
+  return MEMBER_LIMITS[tier];
 }
 
 // ---------------------------------------------------------------------------

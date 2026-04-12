@@ -10,7 +10,11 @@ import OnboardingStepper from "@/components/onboarding/OnboardingStepper";
 import { WelcomeBackBanner, markNavigatedFrom } from "@/components/onboarding/WelcomeBackBanner";
 import { useOnboardingGuard } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
+import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscriptionStatus } from "@/hooks/use-settings-data";
+import { getTierFromProductId } from "@/lib/tier-features";
+import { STRIPE_TIERS } from "@/lib/stripe-tiers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus, X, ChevronDown, Sparkles, ArrowDown, AlertTriangle, Search } from "lucide-react";
 
@@ -20,12 +24,20 @@ interface CustomSource {
   selector: string;
 }
 
-const FREE_TRIAL_SOURCE_LIMIT = 5; // Free trial / no subscription default
+const SOURCE_LIMITS: Record<string, number> = {
+  free: 5,
+  basic: STRIPE_TIERS.basic.sourceLimit,
+  professional: STRIPE_TIERS.professional.sourceLimit,
+  enterprise: STRIPE_TIERS.enterprise.sourceLimit,
+};
 
 const SourcesStep = () => {
   const { profile, loading, user } = useOnboardingGuard();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { data: sub } = useSubscriptionStatus();
+  const tier = getTierFromProductId(sub?.product_id);
+  const sourceLimit = SOURCE_LIMITS[tier] ?? 5;
 
   const [industryTemplates, setIndustryTemplates] = useState<any[]>([]);
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
@@ -252,26 +264,30 @@ const SourcesStep = () => {
         .eq("organization_id", orgId);
     }
 
-    const templateInserts = Array.from(allSourceIds).map((sourceId) => ({
-      organization_id: orgId,
-      source_id: sourceId,
-      is_custom: false,
-    }));
-
-    const customInserts = customSources.map((s) => ({
-      organization_id: orgId,
-      custom_url: s.url,
-      custom_name: s.name || null,
-      custom_selector: s.selector || null,
-      is_custom: true,
-    }));
-
-    const allInserts = [...templateInserts, ...customInserts];
-
-    if (allInserts.length > 0) {
-      const { error } = await supabase.from("organization_sources").insert(allInserts);
+    // Add catalog sources via API (enforces tier-based source limits)
+    const catalogIds = Array.from(allSourceIds);
+    if (catalogIds.length > 0) {
+      const { error } = await apiCall("manage-sources", {
+        action: "add_sources",
+        source_ids: catalogIds,
+      });
       if (error) {
-        toast({ variant: "destructive", title: "Error saving sources", description: error.message });
+        toast({ variant: "destructive", title: "Error saving sources", description: error });
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    // Add custom sources via API (also enforces limits)
+    for (const s of customSources) {
+      const { error } = await apiCall("manage-sources", {
+        action: "add_custom_source",
+        url: s.url,
+        name: s.name || undefined,
+        selector: s.selector || undefined,
+      });
+      if (error) {
+        toast({ variant: "destructive", title: "Error saving custom source", description: error });
         setSubmitting(false);
         return;
       }
@@ -514,11 +530,11 @@ const SourcesStep = () => {
             You're monitoring <span className="text-secondary font-bold">{totalSources}</span> sources
           </div>
 
-          {totalSources > FREE_TRIAL_SOURCE_LIMIT && (
+          {totalSources > sourceLimit && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-700 dark:bg-amber-950/40">
               <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <p className="text-amber-900 dark:text-amber-200">
-                You've selected <strong>{totalSources}</strong> sources. Your current plan allows up to {FREE_TRIAL_SOURCE_LIMIT}. Please reduce your selection or upgrade after onboarding.
+                You've selected <strong>{totalSources}</strong> sources. Your current plan allows up to {sourceLimit}. Please reduce your selection or upgrade after onboarding.
               </p>
             </div>
           )}
@@ -526,7 +542,7 @@ const SourcesStep = () => {
 
         <Button
           onClick={handleSubmit}
-          disabled={submitting || totalSources > FREE_TRIAL_SOURCE_LIMIT}
+          disabled={submitting || totalSources > sourceLimit}
           className="mt-6 w-full bg-secondary text-secondary-foreground hover:bg-teal-light"
         >
           {submitting ? "Saving…" : "Continue"}
