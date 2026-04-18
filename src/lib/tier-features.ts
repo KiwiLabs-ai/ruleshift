@@ -11,6 +11,14 @@ export function getTierFromProductId(productId: string | null | undefined): Tier
   return "free";
 }
 
+/** Monitored source limits per tier. Infinity = unlimited. */
+export const SOURCE_LIMITS: Record<TierName, number> = {
+  free: 5,
+  basic: STRIPE_TIERS.basic.sourceLimit,
+  professional: STRIPE_TIERS.professional.sourceLimit,
+  enterprise: STRIPE_TIERS.enterprise.sourceLimit,
+};
+
 /** Digest frequency options available per tier. */
 export const TIER_FREQUENCY_OPTIONS: Record<TierName, string[]> = {
   free: ["weekly"],

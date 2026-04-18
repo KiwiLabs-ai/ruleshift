@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("organization_id, onboarding_status")
       .eq("user_id", userId)
       .single();
 
@@ -49,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "No organization found. Please complete onboarding." });
     }
     const orgId = profile.organization_id;
+    const isOnboarding = profile.onboarding_status !== "complete";
 
     const rl = await checkRateLimit(orgId, "manage-sources", 60, 3600);
     if (!rl.allowed) {
@@ -153,9 +154,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq("organization_id", orgId);
         if (countErr) throw countErr;
 
-        const sourceLimit = await getSourceLimit(orgId);
-        if ((count ?? 0) + source_ids.length > sourceLimit) {
-          return res.status(403).json({ error: `Source limit reached. You can add up to ${sourceLimit} sources on your current plan.` });
+        if (!isOnboarding) {
+          const sourceLimit = await getSourceLimit(orgId);
+          if ((count ?? 0) + source_ids.length > sourceLimit) {
+            return res.status(403).json({ error: `Source limit reached. You can add up to ${sourceLimit} sources on your current plan.` });
+          }
         }
 
         const rows = source_ids.map((sid: string) => ({
@@ -233,9 +236,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq("organization_id", orgId);
         if (countErr) throw countErr;
 
-        const sourceLimit = await getSourceLimit(orgId);
-        if ((count ?? 0) + 1 > sourceLimit) {
-          return res.status(403).json({ error: `Source limit reached. You can add up to ${sourceLimit} sources on your current plan.` });
+        if (!isOnboarding) {
+          const sourceLimit = await getSourceLimit(orgId);
+          if ((count ?? 0) + 1 > sourceLimit) {
+            return res.status(403).json({ error: `Source limit reached. You can add up to ${sourceLimit} sources on your current plan.` });
+          }
         }
 
         const freq = check_frequency_hours ? `${check_frequency_hours}h` : "24h";

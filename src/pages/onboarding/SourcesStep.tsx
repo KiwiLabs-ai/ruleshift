@@ -12,11 +12,8 @@ import { useOnboardingGuard } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { useSubscriptionStatus } from "@/hooks/use-settings-data";
-import { getTierFromProductId } from "@/lib/tier-features";
-import { STRIPE_TIERS } from "@/lib/stripe-tiers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, X, ChevronDown, Sparkles, ArrowDown, AlertTriangle, Search } from "lucide-react";
+import { Loader2, Plus, X, ChevronDown, Sparkles, ArrowDown, Search } from "lucide-react";
 
 interface CustomSource {
   url: string;
@@ -24,20 +21,10 @@ interface CustomSource {
   selector: string;
 }
 
-const SOURCE_LIMITS: Record<string, number> = {
-  free: 5,
-  basic: STRIPE_TIERS.basic.sourceLimit,
-  professional: STRIPE_TIERS.professional.sourceLimit,
-  enterprise: STRIPE_TIERS.enterprise.sourceLimit,
-};
-
 const SourcesStep = () => {
   const { profile, loading, user } = useOnboardingGuard();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: sub } = useSubscriptionStatus();
-  const tier = getTierFromProductId(sub?.product_id);
-  const sourceLimit = SOURCE_LIMITS[tier] ?? 5;
 
   const [industryTemplates, setIndustryTemplates] = useState<any[]>([]);
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
@@ -524,25 +511,19 @@ const SourcesStep = () => {
           </CollapsibleContent>
         </Collapsible>
 
-        {/* Source count + plan limit warning */}
-        <div className="mt-6 space-y-2">
+        {/* Source count */}
+        <div className="mt-6">
           <div className="rounded-lg bg-muted p-3 text-center text-sm font-medium text-foreground">
             You're monitoring <span className="text-secondary font-bold">{totalSources}</span> sources
           </div>
-
-          {totalSources > sourceLimit && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-700 dark:bg-amber-950/40">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <p className="text-amber-900 dark:text-amber-200">
-                You've selected <strong>{totalSources}</strong> sources. Your current plan allows up to {sourceLimit}. Please reduce your selection or upgrade after onboarding.
-              </p>
-            </div>
-          )}
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Plan limits apply after you choose a plan in the next step.
+          </p>
         </div>
 
         <Button
           onClick={handleSubmit}
-          disabled={submitting || totalSources > sourceLimit}
+          disabled={submitting}
           className="mt-6 w-full bg-secondary text-secondary-foreground hover:bg-teal-light"
         >
           {submitting ? "Saving…" : "Continue"}

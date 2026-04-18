@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,12 +6,20 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Check, Loader2, X, ArrowRight, Shield } from "lucide-react";
 import OnboardingStepper from "@/components/onboarding/OnboardingStepper";
 import { WelcomeBackBanner } from "@/components/onboarding/WelcomeBackBanner";
+import SourceLimitDialog from "@/components/onboarding/SourceLimitDialog";
 import { useOnboardingGuard } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { apiCall } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { STRIPE_TIERS, TierKey } from "@/lib/stripe-tiers";
+import { SOURCE_LIMITS } from "@/lib/tier-features";
 import { cn } from "@/lib/utils";
+
+type PendingPlan =
+  | { kind: "paid"; tierKey: TierKey }
+  | { kind: "free" };
+
+const FREE_TIER_LIMIT = SOURCE_LIMITS.free;
 
 const FREE_FEATURES = [
   "Up to 5 monitored sources",
@@ -31,6 +39,23 @@ const PlanStep = () => {
     searchParams.get("checkout") === "canceled"
   );
   const [skipping, setSkipping] = useState(false);
+  const [sourceCount, setSourceCount] = useState<number>(0);
+  const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
+
+  useEffect(() => {
+    if (!profile?.organization_id) return;
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("organization_sources")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", profile.organization_id);
+      if (!cancelled) setSourceCount(count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.organization_id]);
 
   // Guard: redirect back if they haven't reached step 4 yet
   if (!loading && profile && profile.onboarding_step < 4) {
@@ -46,7 +71,7 @@ const PlanStep = () => {
     );
   }
 
-  const handleSelectPlan = async (tierKey: TierKey) => {
+  const startCheckout = async (tierKey: TierKey) => {
     const tier = STRIPE_TIERS[tierKey];
     setCheckingOut(tierKey);
 
@@ -65,7 +90,7 @@ const PlanStep = () => {
     window.location.href = data.url;
   };
 
-  const handleStartFree = async () => {
+  const completeFreeSignup = async () => {
     setSkipping(true);
     const { error } = await supabase
       .from("profiles")
@@ -83,6 +108,45 @@ const PlanStep = () => {
     }
     navigate("/dashboard?welcome=free", { replace: true });
   };
+
+  const handleSelectPlan = async (tierKey: TierKey) => {
+    const limit = STRIPE_TIERS[tierKey].sourceLimit;
+    if (sourceCount > limit) {
+      setPendingPlan({ kind: "paid", tierKey });
+      return;
+    }
+    await startCheckout(tierKey);
+  };
+
+  const handleStartFree = async () => {
+    if (sourceCount > FREE_TIER_LIMIT) {
+      setPendingPlan({ kind: "free" });
+      return;
+    }
+    await completeFreeSignup();
+  };
+
+  const handleDialogProceed = async () => {
+    if (!pendingPlan) return;
+    const plan = pendingPlan;
+    setPendingPlan(null);
+    if (plan.kind === "paid") {
+      await startCheckout(plan.tierKey);
+    } else {
+      await completeFreeSignup();
+    }
+  };
+
+  const pendingTierName =
+    pendingPlan?.kind === "paid"
+      ? STRIPE_TIERS[pendingPlan.tierKey].name
+      : pendingPlan?.kind === "free"
+        ? "Free"
+        : "";
+  const pendingTierLimit =
+    pendingPlan?.kind === "paid"
+      ? STRIPE_TIERS[pendingPlan.tierKey].sourceLimit
+      : FREE_TIER_LIMIT;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -235,6 +299,17 @@ const PlanStep = () => {
           14-day free trial on all paid plans. You won't be charged until the trial ends.
         </p>
       </div>
+
+      <SourceLimitDialog
+        open={pendingPlan !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPlan(null);
+        }}
+        tierName={pendingTierName}
+        tierLimit={pendingTierLimit}
+        onProceed={handleDialogProceed}
+        onSourceCountChange={setSourceCount}
+      />
     </div>
   );
 };
