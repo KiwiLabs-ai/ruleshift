@@ -119,12 +119,21 @@ const CompanyStep = () => {
 
     // Add user as org owner if not already a member
     if (!existingOrgId) {
-      await supabase.from("organization_members").insert({
+      const { error: memberError } = await supabase.from("organization_members").insert({
         organization_id: orgId,
         user_id: user!.id,
         role: "owner",
         accepted_at: new Date().toISOString(),
       });
+      if (memberError) {
+        toast({
+          variant: "destructive",
+          title: "Error setting up organization access",
+          description: memberError.message,
+        });
+        setSubmitting(false);
+        return;
+      }
     }
 
     // Update profile
